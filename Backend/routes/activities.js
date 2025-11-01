@@ -16,5 +16,9 @@ router.delete('/posts/:id', authenticate, ActivityController.deletePost);
 
 // posts by user
 router.get('/user/:userId', ActivityController.listPostsByUser);
+// participants endpoints
+router.get('/posts/:id/participants', ActivityController.listParticipants);
+router.post('/posts/:id/join', authenticate, ActivityController.joinPost);
+router.post('/posts/:id/leave', authenticate, ActivityController.leavePost);
 
 module.exports = router;
