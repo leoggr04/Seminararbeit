@@ -41,7 +41,6 @@ async function joinPost(postId, userId) {
   // ensure post exists
   const post = await ActivityPost.getActivityPostById(postId);
   if (!post) throw new Error('not_found');
-  // prevent owner joining as participant twice (owner may be implicitly participant or not)
   if (post.user_id === userId) throw new Error('owner_cannot_join');
   const added = await Participants.addParticipant(postId, userId);
   return added;

@@ -13,7 +13,7 @@ async function removeParticipant(postId, userId) {
 }
 
 async function listParticipants(postId) {
-  const q = `SELECT ap.post_id, ap.user_id, ap.joined_at, u.name, u.email FROM activity_participants ap JOIN users u ON u.user_id = ap.user_id WHERE ap.post_id = $1 ORDER BY ap.joined_at`;
+  const q = `SELECT ap.post_id, ap.user_id, ap.joined_at, u.first_name, u.last_name, u.email FROM activity_participants ap JOIN users u ON u.user_id = ap.user_id WHERE ap.post_id = $1 ORDER BY ap.joined_at`;
   const res = await db.query(q, [postId]);
   return res.rows;
 }
