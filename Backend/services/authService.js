@@ -63,15 +63,15 @@ async function loginUserByEmail(email, password) {
   return { accessToken, refreshToken: refreshPlain, user };
 }
 
-async function registerUser(name, email, password) {
-  if (!name || !email || !password) throw new Error('invalid_input');
+async function registerUser(first_name, last_name, email, password) {
+  if (!first_name || !last_name || !email || !password) throw new Error('invalid_input');
   const existing = await User.getUserByEmail(email);
   if (existing) throw new Error('email_taken');
 
   const bcrypt = require('bcryptjs');
   const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
   const hash = await bcrypt.hash(password, rounds);
-  const newUser = await User.createUser(name, email, hash);
+  const newUser = await User.createUser(first_name, last_name, email, hash);
   return newUser;
 }
 

@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const usersRouter = require('./routes/users');
 const authRouter = require('./routes/auth');
+const activitiesRouter = require('./routes/activities');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/openapi');
 
@@ -20,6 +21,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/users', usersRouter);
 app.use('/api/auth', authRouter);
+app.use('/api/activities', activitiesRouter);
 
 // Swagger UI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

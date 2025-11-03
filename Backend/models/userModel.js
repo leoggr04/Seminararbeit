@@ -1,22 +1,22 @@
 const db = require('../db');
 
 async function getAllUsers() {
-  const res = await db.query('SELECT user_id, name, email FROM users ORDER BY user_id');
+  const res = await db.query('SELECT user_id, first_name, last_name, email FROM users ORDER BY user_id');
   return res.rows;
 }
 
 async function getUserById(id) {
-  const res = await db.query('SELECT user_id, name, email FROM users WHERE user_id = $1', [id]);
+  const res = await db.query('SELECT user_id, first_name, last_name, email FROM users WHERE user_id = $1', [id]);
   return res.rows[0] || null;
 }
 
 async function getUserByEmail(email) {
-  const res = await db.query('SELECT user_id, name, email, password_hash, pw_reset_token, reset_token_timeout FROM users WHERE email = $1', [email]);
+  const res = await db.query('SELECT user_id, first_name, last_name, email, password_hash, pw_reset_token, reset_token_timeout FROM users WHERE email = $1', [email]);
   return res.rows[0] || null;
 }
 
 async function getUserByResetToken(token) {
-  const res = await db.query('SELECT user_id, name, email FROM users WHERE pw_reset_token = $1 AND reset_token_timeout > now()', [token]);
+  const res = await db.query('SELECT user_id, first_name, last_name, email FROM users WHERE pw_reset_token = $1 AND reset_token_timeout > now()', [token]);
   return res.rows[0] || null;
 }
 
@@ -32,9 +32,9 @@ async function updatePassword(id, hashedPassword, client) {
   return db.query(q, [hashedPassword, id]);
 }
 
-async function createUser(name, email, hashedPassword) {
-  const q = `INSERT INTO users (name, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, now(), now()) RETURNING user_id, name, email`;
-  const res = await db.query(q, [name, email, hashedPassword]);
+async function createUser(first_name, last_name, email, hashedPassword) {
+  const q = `INSERT INTO users (first_name, last_name, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING user_id, first_name, last_name, email`;
+  const res = await db.query(q, [first_name, last_name, email, hashedPassword]);
   return res.rows[0];
 }
 module.exports = {
