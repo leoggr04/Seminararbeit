@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import {StyleSheet, Text, View, TouchableOpacity, Image, StatusBar} from "react-native";
+import {StyleSheet, Text, View, TouchableOpacity, Image, StatusBar, Alert} from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useUser } from "@/components/UserContext";
 import { useRouter } from "expo-router";
 import {MaterialIcons} from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 
 const Profile = () => {
     const { user, logout } = useUser();
@@ -11,9 +12,26 @@ const Profile = () => {
     const [image, setImage] = useState<string | null>(null);
 
     const handleLogout = () => {
-        logout();
-        router.replace("/login");
+        Alert.alert(
+            "Abmelden",
+            "Möchtest du dich wirklich abmelden?",
+            [
+                { text: "Abbrechen", style: "cancel" },
+                {
+                    text: "Ja",
+                    style: "destructive",
+                    onPress: async () => {
+                        await SecureStore.deleteItemAsync("authToken");
+                        await SecureStore.deleteItemAsync("refreshToken");
+                        await SecureStore.deleteItemAsync("userId");
+                        logout();
+                        router.replace("/login");
+                    },
+                },
+            ]
+        );
     };
+
 
     const pickImage = async () => {
         const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -51,7 +69,7 @@ const Profile = () => {
 
 
             {/* Name & Email */}
-            <Text style={styles.name}>{user.name}</Text>
+            <Text style={styles.name}>{user.first_name} {user.last_name}</Text>
             <Text style={styles.email}>{user.email}</Text>
 
             {/* Logout Button */}

@@ -1,18 +1,104 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
+import React, {useEffect, useState} from "react";
+import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert} from "react-native";
 import {useNavigation, useRouter} from "expo-router";
 import Icon from "@expo/vector-icons/Ionicons";
-import Signup from "@/app/signup";
+import {getUserById, loginUser} from "@/services/api"; // 👈 importiere deinen Service
+import {useUser} from "@/components/UserContext";
+import * as SecureStore from "expo-secure-store";
+import {User} from "@/types/types";
 
 export default function LoginScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const router = useRouter();
     const navigation = useNavigation();
+    const [loading, setLoading] = useState(true);
+    const {login} = useUser();
+    const devmode = false;
 
-    const handleLogin = () => {
-        router.replace("/(tabs)/feed");
+    useEffect(() => {
+        const checkToken = async () => {
+            try {
+                const accessToken = await SecureStore.getItemAsync("authToken");
+                const refreshToken = await SecureStore.getItemAsync("refreshToken");
+                const userId = await SecureStore.getItemAsync("userId");
+                // Wenn Token existieren, ggf. Userdaten abrufen und einloggen
+                if (accessToken && refreshToken && userId && !devmode) {
+                    // Beispiel: User-Daten von API holen (optional)
+                    // const response = await getUserById(userId, accessToken);
+                    // const user = response.data.user;
+
+                    // Einfachheitshalber Token nutzen, wenn du bereits User im Token hast:
+                    // login(user.name, user.email, user.image, user.id);
+
+                    // Weiterleitung
+                    const response = await getUserById(userId);
+                    const user = response.data.data;
+
+                    login(user.first_name, user.last_name, user.email, user.image, user.user_id);
+
+                    router.replace("/(tabs)/feed");
+                }
+            } catch (error) {
+                console.error("Token-Check fehlgeschlagen:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        checkToken();
+    }, []);
+
+
+
+    const handleLogin = async () => {
+        // Prüfen, ob E-Mail und Passwort eingegeben wurden
+        if (!email || !password) {
+            Alert.alert("Fehler", "Bitte E-Mail und Passwort eingeben.");
+            return;
+        }
+
+        try {
+            setLoading(true); // Ladezustand aktivieren
+
+            // API-Request für Login
+            const response = await loginUser(email, password);
+
+            // Response auspacken: Token(s) und Userdaten
+            const { accessToken, refreshToken, user } = response.data;
+
+            if (!accessToken || !refreshToken || !user) {
+                throw new Error("Ungültige Login-Antwort vom Server.");
+            }
+
+            // Token(s) in SecureStore speichern (müssen Strings sein)
+            await SecureStore.setItemAsync("authToken", String(accessToken));
+            await SecureStore.setItemAsync("refreshToken", String(refreshToken));
+            await SecureStore.setItemAsync("userId", String(user.user_id));
+
+
+            // User in Context speichern
+            login(user.first_name, user.last_name, user.email, undefined, user.user_id);
+
+            // Optional: Willkommen-Alert
+            Alert.alert("Erfolg", `Willkommen zurück, ${user.first_name || email}!`);
+
+            // Weiterleitung zum Feed
+            router.replace("/(tabs)/feed");
+
+        } catch (error: any) {
+            console.error(error);
+            // Fehlernachricht aus der API oder generisch
+            const message =
+                error.response?.data?.message ||
+                error.message ||
+                "Login fehlgeschlagen. Bitte überprüfe deine Eingaben.";
+            Alert.alert("Fehler", message);
+        } finally {
+            setLoading(false); // Ladezustand deaktivieren
+        }
     };
+
 
     return (
         <View style={styles.container}>

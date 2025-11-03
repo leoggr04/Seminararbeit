@@ -9,11 +9,11 @@ const api = axios.create({
 });
 
 // === AUTH ROUTES ===
-export const registerUser = (name, email, password) => {
-    return api.post("/auth/register", { name, email, password });
+export const registerUser = (first_name: string, last_name: string, email: string,  password: string) => {
+    return api.post("/auth/register", { first_name, last_name, email, password });
 };
 
-export const loginUser = (email, password) => {
+export const loginUser = (email: string, password: string) => {
     return api.post("/auth/login", { email, password });
 };
 
@@ -24,6 +24,10 @@ export const refreshToken = (token) => {
 export const logoutUser = (token) => {
     return api.post("/auth/logout", { token });
 };
+
+export const getUserById = (id) => {
+    return api.get(`/users/${id}`);
+}
 
 // === PASSWORD RESET ===
 export const requestPasswordReset = (email) => {

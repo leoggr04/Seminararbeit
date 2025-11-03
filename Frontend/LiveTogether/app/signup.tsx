@@ -4,6 +4,8 @@ import { useRouter } from "expo-router";
 import Icon from "@expo/vector-icons/Ionicons";
 import { useUser } from "@/components/UserContext";
 import * as ImagePicker from "expo-image-picker";
+import {registerUser, loginUser} from "@/services/api";
+import * as SecureStore from "expo-secure-store";
 
 export default function Signup() {
     const [firstname, setFirstname] = useState("");
@@ -19,6 +21,8 @@ export default function Signup() {
     const [passwordError, setPasswordError] = useState(false);
     const { login } = useUser();
     const [image, setImage] = useState<string | null>(null);
+    const [loading, setLoading] = useState(false);
+
 
     const handleLogin = () => {
         router.replace("/(tabs)/feed");
@@ -82,7 +86,7 @@ export default function Signup() {
     };
 
     const validatePassword = (value: string) => {
-        const passwordRegex = /^(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/;
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
         if (!value) {
             setPasswordError(true);
             return "Bitte gib ein Passwort ein.";
@@ -95,10 +99,11 @@ export default function Signup() {
         return "";
     };
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         Keyboard.dismiss();
         setSubmitted(true);
 
+        // Validierungen
         const firstNameErrorMsg = validateName(firstname.trim(), "Vorname");
         const lastNameErrorMsg = validateName(lastname.trim(), "Nachname");
         const emailErrorMsg = validateEmail(email.trim());
@@ -110,23 +115,64 @@ export default function Signup() {
         }
 
         setError("");
+        setLoading(true);
 
-        // Lokaler Login ohne API
-        login(`${firstname.trim()} ${lastname.trim()}`, email.trim(), image ?? undefined);
-        handleLogin();
+        try {
+            // 1️⃣ Registrierung bei API
+            const registerResponse = await registerUser(
+                firstname.trim(),
+                lastname.trim(),
+                email.trim(),
+                password.trim()
+            );
+
+            const { user: registeredUser } = registerResponse.data;
+
+            const loginResponse = await loginUser(email.trim(), password.trim());
+            const { accessToken, refreshToken } = loginResponse.data;
+
+            await SecureStore.setItemAsync("authToken", accessToken);
+            await SecureStore.setItemAsync("refreshToken", refreshToken);
+            await SecureStore.setItemAsync("userId", String(registeredUser.user_id));
+
+            login(
+                registeredUser.first_name,
+                registeredUser.last_name,
+                registeredUser.email,
+                registeredUser.image,
+                registeredUser.user_id
+            );
+
+            router.replace("/(tabs)/feed");
+
+
+        } catch (err: any) {
+            console.error("Signup/Login Fehler:", err.response?.data || err.message);
+            setError(err.response?.data?.message || "Registrierung fehlgeschlagen. Bitte versuche es erneut.");
+        } finally {
+            setLoading(false);
+        }
     };
+
+
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => router.push("/login")}>
+                    <Icon name="arrow-back" size={32} color="#333" />
+                </TouchableOpacity>
+            </View>
             <ScrollView
                 contentContainerStyle={styles.container}
                 keyboardShouldPersistTaps="handled"
             >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View>
+
                         <Text style={styles.title}>Konto erstellen</Text>
 
                         <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
@@ -188,8 +234,14 @@ export default function Signup() {
 
                         {submitted && error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                        <TouchableOpacity style={styles.button} onPress={handleSubmit}>
-                            <Text style={styles.buttonText}>Registrieren</Text>
+                        <TouchableOpacity
+                            style={[styles.button, loading && { opacity: 0.6 }]}
+                            onPress={handleSubmit}
+                            disabled={loading}
+                        >
+                            <Text style={styles.buttonText}>
+                                {loading ? "Registriere..." : "Registrieren"}
+                            </Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableWithoutFeedback>
@@ -205,6 +257,13 @@ const styles = StyleSheet.create({
         padding: 24,
         backgroundColor: "#f8f9fa",
     },
+    header: {
+        position: "absolute",
+        top: 75, // leicht unterhalb der Statusleiste
+        left: 30,
+        zIndex: 10,
+    },
+
     title: {
         fontSize: 28,
         fontWeight: "700",
