@@ -6,8 +6,8 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
 
-    const login = (name: string, email: string, image?: string) => {
-        setUser({ name, email, image });
+    const login = (first_name: string, last_name:string, email: string, image?: string, id?:number) => {
+        setUser({ first_name, last_name, email, image, id });
     };
 
     const logout = () => {
