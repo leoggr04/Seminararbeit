@@ -18,6 +18,8 @@ async function createType(req, res) {
  *     tags:
  *       - activity
  *     summary: Create a new activity type
+ *     security:
+ *       - bearerAuth: []
  *     description: Creates a new activity type with an optional icon URL.
  *     requestBody:
  *       required: true
@@ -110,7 +112,7 @@ async function createPost(req, res) {
 
 /**
  * @openapi
- * /api/posts:
+ * /api/activities/posts:
  *   post:
  *     tags:
  *       - activity
