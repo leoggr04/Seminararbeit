@@ -2,7 +2,7 @@ import React, {useEffect, useState} from "react";
 import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert} from "react-native";
 import {useNavigation, useRouter} from "expo-router";
 import Icon from "@expo/vector-icons/Ionicons";
-import {getUserById, loginUser} from "@/services/api"; // 👈 importiere deinen Service
+import {getUserById, loginUser, refreshToken} from "@/services/api"; // 👈 importiere deinen Service
 import {useUser} from "@/components/UserContext";
 import * as SecureStore from "expo-secure-store";
 import {User} from "@/types/types";
@@ -20,19 +20,30 @@ export default function LoginScreen() {
         const checkToken = async () => {
             try {
                 const accessToken = await SecureStore.getItemAsync("authToken");
-                const refreshToken = await SecureStore.getItemAsync("refreshToken");
+                const refreshTokenLokal = await SecureStore.getItemAsync("refreshToken");
                 const userId = await SecureStore.getItemAsync("userId");
                 // Wenn Token existieren, ggf. Userdaten abrufen und einloggen
-                if (accessToken && refreshToken && userId && !devmode) {
+                if (accessToken && refreshTokenLokal && userId && !devmode) {
                     // Beispiel: User-Daten von API holen (optional)
                     // const response = await getUserById(userId, accessToken);
                     // const user = response.data.user;
 
                     // Einfachheitshalber Token nutzen, wenn du bereits User im Token hast:
                     // login(user.name, user.email, user.image, user.id);
-
+                    console.log("Alter Token:", accessToken);
                     // Weiterleitung
                     const response = await getUserById(userId);
+                    console.log("Test:");
+                    const newToken = await refreshToken(refreshTokenLokal);
+
+                    const accesTokenNew = newToken.data.accessToken;
+                    const refreshTokenNew = newToken.data.refreshToken;
+
+                    // neue Tokens speichern
+                    await SecureStore.setItemAsync("authToken", String(accesTokenNew));
+                    await SecureStore.setItemAsync("refreshToken", String(refreshTokenNew));
+                    console.log("Neuer Token:", accesTokenNew);
+
                     const user = response.data.data;
 
                     login(user.first_name, user.last_name, user.email, user.image, user.user_id);

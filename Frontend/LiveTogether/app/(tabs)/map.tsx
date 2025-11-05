@@ -6,13 +6,25 @@ import {
     Modal,
     Text,
     TextInput,
-    TouchableOpacity, Keyboard,
+    TouchableOpacity, Keyboard, Image,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import SearchBar from "@/components/SearchBar";
 import { createMarker, getMarkers, MarkerType } from "@/services/appwrite";
 import MarkerWithEmoji from "@/components/MarkerWithEmoji";
 import DateTimePicker from "@/components/DateTimePicker";
+import {createActivity, deleteActivity, getActivityTypes, getAllActivities} from "@/services/api";
+import * as SecureStore from "expo-secure-store";
+import {Picker} from "@react-native-picker/picker";
+
+useEffect(() => {
+    const printToken = async () => {
+        const token = await SecureStore.getItemAsync("refreshToken");
+        console.log("Aktueller Token:", token);
+    };
+    printToken();
+}, []);
+
 
 const initialRegion = {
     latitude: 47.6510,
@@ -28,6 +40,9 @@ const Map = () => {
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [emoji, setEmoji] = useState<string>("🌲");
+    const [activityTypes, setActivityTypes] = useState<{id: number, name: string, icon_url?: string}[]>([]);
+    const [selectedActivityType, setSelectedActivityType] = useState<{id: number, name: string, icon_url?: string} | null>(null);
+
 
     // 🔍 NEU: Suchbegriff
     const [searchQuery, setSearchQuery] = useState<string>("");
@@ -35,24 +50,44 @@ const Map = () => {
     const [showSuggestions, setShowSuggestions] = useState(true);
     const [isSearchActive, setIsSearchActive] = useState(false);
 
+    useEffect(() => {
+        const loadActivityTypes = async () => {
+            try {
+                const types = await getActivityTypes();
+                // Mappe activity_type_id auf id
+                const mappedTypes = types.map(t => ({
+                    id: t.activity_type_id,
+                    name: t.name,
+                    icon_url: t.icon_url
+                }));
+                setActivityTypes(mappedTypes);
 
-    // einmalig nach dem Laden oder wenn markers sich ändern:
-    const uniqueTitles = React.useMemo(() => {
-        // unique, trim, filter empty
-        const titles = markers
-            .map(m => (m.title ?? "").trim())
-            .filter(t => t.length > 0);
-        return Array.from(new Set(titles)); // unique
+                if (mappedTypes.length > 0 && !selectedActivityType) {
+                    setSelectedActivityType(mappedTypes[0]); // Default
+                }
+            } catch (err) {
+                console.error("Fehler beim Laden der Aktivitätstypen:", err);
+            }
+        };
+        loadActivityTypes();
+    }, []);
+
+
+
+    const uniqueDescription = React.useMemo(() => {
+        return Array.from(new Set(markers
+            .map(m => (m.description ?? "").trim())
+            .filter(t => t.length > 0)
+        ));
     }, [markers]);
 
-// Vorschläge (z. B. "Amazon-like": startsWith), case-insensitive, max 5
+    // Vorschläge für Suche
     const suggestions = React.useMemo(() => {
-        if (!searchQuery || searchQuery.trim().length === 0) return [];
+        if (!searchQuery.trim()) return [];
         const q = searchQuery.toLowerCase().trim();
-        return uniqueTitles
-            .filter(title => title.toLowerCase().startsWith(q))
-            .slice(0, 5);
-    }, [uniqueTitles, searchQuery]);
+        return uniqueDescription.filter(title => title.toLowerCase().startsWith(q)).slice(0, 5);
+    }, [uniqueDescription, searchQuery]);
+
 
 // Handler wenn ein Vorschlag ausgewählt wird
     const handleSelectSuggestion = (suggestion: string) => {
@@ -71,14 +106,28 @@ const Map = () => {
     useEffect(() => {
         const loadMarkers = async () => {
             try {
-                const savedMarkers = await getMarkers();
-                setMarkers(savedMarkers);
+                const activities = await getAllActivities();
+                const formattedMarkers = activities
+                    .filter(a => a.latitude != null && a.longitude != null)
+                    .map(a => ({
+                        post_id: a.id,
+                        latitude: a.latitude,
+                        longitude: a.longitude,
+                        title: a.activity_type_name || "Unbenannte Aktivität",
+                        description: a.description,
+                        start_time: a.start_time,
+                        end_time: a.end_time,
+                        status: a.status,
+                    }));
+
+                setMarkers(formattedMarkers);
             } catch (err) {
-                console.error("Fehler beim Laden der Marker:", err);
+                console.error("Fehler beim Laden der Aktivitäten:", err);
             }
         };
         loadMarkers();
     }, []);
+
 
     // Öffnet Modal beim Klick auf die Map
     const handleMapPress = (e: any) => {
@@ -94,29 +143,57 @@ const Map = () => {
 
     // Speichert neuen Marker
     const handleSaveMarker = async () => {
-        if (!newMarkerCoords) return;
-
-        const newMarker: MarkerType = {
-            latitude: newMarkerCoords.latitude,
-            longitude: newMarkerCoords.longitude,
-            title: title || "Unbenannter Ort",
-            description: description || "",
-            emoji: emoji,
-            startDate: startDate.toISOString(),
-            endDate: endDate.toISOString(),
-        };
-
-        setMarkers((prev) => [...prev, newMarker]);
-        setModalVisible(false);
+        if (!newMarkerCoords || !selectedActivityType) {
+            Alert.alert("Fehler", "Bitte Aktivitätstyp auswählen.");
+            return;
+        }
 
         try {
-            await createMarker(newMarker);
-            Alert.alert("Gespeichert ✅", "Marker wurde in Appwrite gespeichert!");
+            const activityPost = {
+                activity_type_id: selectedActivityType?.id,
+                description: description || "",
+                start_time: startDate.toISOString(),
+                end_time: endDate.toISOString(),
+                latitude: newMarkerCoords.latitude,
+                longitude: newMarkerCoords.longitude,
+                status: "offen",
+            };
+
+            const savedActivity = await createActivity(activityPost);
+
+            setMarkers(prev => [
+                ...prev,
+                {
+                    post_id: savedActivity.id,
+                    latitude: savedActivity.latitude,
+                    longitude: savedActivity.longitude,
+                    title: selectedActivityType.name,
+                    description: savedActivity.description,
+                    start_time: savedActivity.start_time,
+                    end_time: savedActivity.end_time,
+                    status: savedActivity.status,
+                },
+            ]);
+
+            setModalVisible(false);
+            Alert.alert("Gespeichert ✅", "Aktivität wurde erstellt!");
         } catch (err) {
             console.error("Fehler beim Speichern:", err);
-            Alert.alert("Fehler", "Marker konnte nicht gespeichert werden.");
+            Alert.alert("Fehler", "Aktivität konnte nicht erstellt werden.");
         }
     };
+
+    const handleDeleteMarker = async (postId: number) => {
+        try {
+            await deleteActivity(postId);
+            setMarkers(prev => prev.filter(m => m.post_id !== postId));
+            Alert.alert("Gelöscht ✅", "Aktivität wurde entfernt.");
+        } catch (err) {
+            console.error(err);
+            Alert.alert("Fehler", "Löschen fehlgeschlagen.");
+        }
+    };
+
 
     const handleMarkerPress = (marker: MarkerType) => {
         setTitle(marker.title ?? "Unbenannter Ort");
@@ -125,9 +202,10 @@ const Map = () => {
         setModalVisible(true);
     };
 
-    // 🔍 Filtert Marker nach Suchbegriff (Titel)
+
+    // 🔍 Filtert Marker nach Suchbegriff (beschreibung)
     const filteredMarkers = markers.filter(marker =>
-        marker.title.toLowerCase().includes(searchQuery.toLowerCase())
+        marker.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -155,7 +233,7 @@ const Map = () => {
                     <MarkerWithEmoji
                         // stable key -> not changing due to filtering
                         // if no stable key used, emoji falls back to default after applying filter
-                        key={`${marker.latitude}-${marker.longitude}`}
+                        key={marker.post_id?.toString() || `${marker.latitude}-${marker.longitude}`}
                         marker={marker}
                         onPress={() => handleMarkerPress(marker)}
                     />
@@ -164,7 +242,8 @@ const Map = () => {
             </MapView>
 
             {/* 🔍 Suchleiste */}
-            <View style={{ marginTop: 50, paddingHorizontal: 16 }}>
+            <View
+                style={{ marginTop: 50, paddingHorizontal: 16 }}>
                 <SearchBar
                     placeholder="Suche eine Aktivität"
                     value={searchQuery}
@@ -190,12 +269,26 @@ const Map = () => {
                     <View style={styles.modalContainer}>
                         <Text style={styles.modalTitle}>Neue Aktivität</Text>
 
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Titel"
-                            value={title}
-                            onChangeText={setTitle}
-                        />
+                        {/* Activity Type Picker */}
+                        <Text style={{ fontWeight: "bold", marginBottom: 4 }}>Aktivitätstyp</Text>
+
+                        <View style={{ marginBottom: 12 }}>
+                            <Picker
+                                selectedValue={selectedActivityType?.id || ""}
+                                onValueChange={(value) => {
+                                    const numericValue = Number(value);
+                                    const selected = activityTypes.find((t) => t.id === numericValue);
+                                    setSelectedActivityType(selected || null);
+                                }}
+                            >
+                                {activityTypes.map((type) => (
+                                    <Picker.Item key={type.id} label={type.name} value={type.id} />
+                                ))}
+                            </Picker>
+
+                        </View>
+
+                        {/* Beschreibung */}
                         <TextInput
                             style={[styles.input, { height: 80 }]}
                             placeholder="Beschreibung"
@@ -204,11 +297,11 @@ const Map = () => {
                             multiline
                         />
 
-                        {/* Emoji Picker */}
+                        {/* Optional: Emoji Picker */}
                         <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
-                            {["📍", "🌲", "🏔️", "🏕️", "🏃", "🏈", "🏀", "🎾"].map((e) => (
+                            {["📍", "🌲", "🏔️", "🏕️", "🏃", "🏈", "🏀", "🎾"].map((e, index) => (
                                 <TouchableOpacity
-                                    key={e}
+                                    key={`${e}-${index}`}
                                     onPress={() => setEmoji(e)}
                                     style={[
                                         styles.emojiButton,
@@ -220,6 +313,7 @@ const Map = () => {
                             ))}
                         </View>
 
+                        {/* Datum/Zeit Picker */}
                         <DateTimePicker
                             startDate={startDate}
                             endDate={endDate}
@@ -229,10 +323,14 @@ const Map = () => {
                             }}
                         />
 
+                        {/* Speichern Button */}
                         <TouchableOpacity style={styles.button} onPress={handleSaveMarker}>
-                            <Text style={{ color: "white", fontWeight: "bold" }}>Speichern & Veröffentlichen</Text>
+                            <Text style={{ color: "white", fontWeight: "bold" }}>
+                                Speichern & Veröffentlichen
+                            </Text>
                         </TouchableOpacity>
 
+                        {/* Abbrechen Button */}
                         <TouchableOpacity
                             style={[styles.button, { backgroundColor: "#aaa", marginTop: 8 }]}
                             onPress={() => setModalVisible(false)}
@@ -242,6 +340,7 @@ const Map = () => {
                     </View>
                 </View>
             </Modal>
+
         </View>
     );
 };
@@ -289,5 +388,35 @@ const styles = StyleSheet.create({
         borderColor: "transparent",
     },
 });
+
+const pickerSelectStyles = StyleSheet.create({
+    inputIOS: {
+        fontSize: 16,
+        paddingVertical: 12,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 8,
+        color: "black",
+        paddingRight: 30, // Platz für Icon
+        backgroundColor: "#f9f9f9",
+    },
+    inputAndroid: {
+        fontSize: 16,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: "#ccc",
+        borderRadius: 8,
+        color: "black",
+        paddingRight: 30,
+        backgroundColor: "#f9f9f9",
+    },
+    iconContainer: {
+        top: 10,
+        right: 12,
+    },
+});
+
 
 export default Map;
