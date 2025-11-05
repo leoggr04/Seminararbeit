@@ -390,7 +390,7 @@ async function listPostsByUser(req, res) {
 
 /**
  * @openapi
- * /api/activities/user/{userId}/posts:
+ * /api/activities/user/{userId}:
  *   get:
  *     tags:
  *       - activity
