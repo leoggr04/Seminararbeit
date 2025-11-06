@@ -2,7 +2,7 @@ import React, {useEffect, useState} from "react";
 import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert} from "react-native";
 import {useNavigation, useRouter} from "expo-router";
 import Icon from "@expo/vector-icons/Ionicons";
-import {getUserById, loginUser, refreshToken} from "@/services/api"; // 👈 importiere deinen Service
+import {getUserById, loginUser, refreshAccessToken} from "@/services/api"; // 👈 importiere deinen Service
 import {useUser} from "@/components/UserContext";
 import * as SecureStore from "expo-secure-store";
 import {User} from "@/types/types";
@@ -34,7 +34,7 @@ export default function LoginScreen() {
                     // Weiterleitung
                     const response = await getUserById(userId);
                     console.log("Test:");
-                    const newToken = await refreshToken(refreshTokenLokal);
+                    const newToken = await refreshAccessToken(refreshTokenLokal);
 
                     const accesTokenNew = newToken.data.accessToken;
                     const refreshTokenNew = newToken.data.refreshToken;

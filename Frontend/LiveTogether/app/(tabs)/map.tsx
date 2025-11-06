@@ -13,9 +13,11 @@ import SearchBar from "@/components/SearchBar";
 import { createMarker, getMarkers, MarkerType } from "@/services/appwrite";
 import MarkerWithEmoji from "@/components/MarkerWithEmoji";
 import DateTimePicker from "@/components/DateTimePicker";
-import {createActivity, deleteActivity, getActivityTypes, getAllActivities} from "@/services/api";
+import {createActivity, deleteActivity, getActivityTypes, getAllActivities, getUserActivities} from "@/services/api";
 import * as SecureStore from "expo-secure-store";
 import {Picker} from "@react-native-picker/picker";
+import {awaitExpression} from "@babel/types";
+import {useFocusEffect} from "@react-navigation/native";
 
 useEffect(() => {
     const printToken = async () => {
@@ -103,7 +105,8 @@ const Map = () => {
 
 
     // Lade Marker beim Start
-    useEffect(() => {
+    useFocusEffect(
+        React.useCallback(()=>{
         const loadMarkers = async () => {
             try {
                 const activities = await getAllActivities();
@@ -126,7 +129,8 @@ const Map = () => {
             }
         };
         loadMarkers();
-    }, []);
+    }, [])
+    );
 
 
     // Öffnet Modal beim Klick auf die Map
