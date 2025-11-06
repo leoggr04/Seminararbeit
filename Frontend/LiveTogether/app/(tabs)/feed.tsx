@@ -175,40 +175,44 @@ const Feed: React.FC = () => {
         };
 
         return (
-            <TouchableOpacity
-                style={[styles.card, isPast && { opacity: 0.5 }]}
-                onPress={() => {}}
-            >
-                {/* Obere Zeile: Titel + Löschen */}
-                <View style={styles.row}>
-                    <Text style={styles.title}>{activityTypes[item.activity_type_id]?.name} am {formatDateShort(item.start_time)}</Text>
+            <TouchableOpacity style={styles.card} onPress={() => {}}>
+                <View style={{ opacity: isPast ? 0.5 : 1 }}>
+                    {/* Alles, was ausgegraut werden soll */}
+                    <View style={styles.row}>
+                        <Text style={styles.title}>
+                            {isEmoji(activityTypes[item.activity_type_id]?.icon_url)
+                                ? `${activityTypes[item.activity_type_id]?.icon_url} `
+                                : "📍"}
+                            {activityTypes[item.activity_type_id]?.name} am {formatDateShort(item.start_time)}
+                        </Text>
 
-                    <Text style={[styles.status, { color: statusColor }]}>
-                        {statusText}
+                        <Text style={[styles.status, { color: statusColor }]}>{statusText}</Text>
+                    </View>
+                    <Text style={styles.description}>
+                        {item.description?.length ? item.description : "Keine Beschreibung"}
                     </Text>
-
+                    <View style={styles.metaRow}>
+                        <Text style={styles.metaText}>Start: {formatDateTime(item.start_time)}</Text>
+                        <Text style={styles.metaText}>Ende: {formatDateTime(item.end_time)}</Text>
+                    </View>
+                    <Text style={[styles.metaText, { marginTop: 8 }]}>
+                        Standort: {locations[item.post_id] || `${round(item.latitude)}, ${round(item.longitude)}`}
+                    </Text>
                 </View>
 
-                <Text style={styles.description}>
-                    {item.description?.length ? item.description : "Keine Beschreibung"}
-                </Text>
-
-                <View style={styles.metaRow}>
-                    <Text style={styles.metaText}>Start: {formatDateTime(item.start_time)}</Text>
-                    <Text style={styles.metaText}>Ende: {formatDateTime(item.end_time)}</Text>
-
-                </View>
-                <Text style={[styles.metaText, { marginTop: 8 }]}>
-                    Standort: {locations[item.post_id] || `${round(item.latitude)}, ${round(item.longitude)}`}
-                </Text>
 
 
 
                 {/* Untere Zeile: Bearbeiten links, Status rechts */}
                 <View style={styles.bottomRow}>
-                    <TouchableOpacity style={styles.editButton}>
-                        <Text style={styles.buttonText}>Bearbeiten</Text>
-                    </TouchableOpacity>
+                    { !isPast ? (
+                        <TouchableOpacity style={styles.editButton}>
+                            <Text style={styles.buttonText}>Bearbeiten</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        // Platzhalter, der gleiche Breite wie der Button hat
+                        <View style={[styles.editButton, { backgroundColor: "transparent" }]} />
+                    )}
 
                     <TouchableOpacity
                         onPress={handleDelete}
@@ -254,7 +258,7 @@ const Feed: React.FC = () => {
                     }
                     renderItem={renderItem}
                     ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
-                    contentContainerStyle={{ paddingBottom: 40 }}
+                    contentContainerStyle={{ paddingBottom: 120 }}
                     refreshControl={
                         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
                     }
@@ -296,6 +300,14 @@ function capitalize(s?: string) {
     if (!s) return "";
     return s.charAt(0).toUpperCase() + s.slice(1);
 }
+
+// Hilfsfunktion, um zu checken, ob ein String ein Emoji ist
+function isEmoji(str: string | null | undefined): boolean {
+    if (!str) return false;
+    // Einfacher Regex-Check für Unicode-Emojis
+    return /\p{Emoji}/u.test(str);
+}
+
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#f8f9fa", paddingTop: 80, paddingHorizontal: 20 },

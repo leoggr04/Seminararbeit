@@ -19,13 +19,9 @@ import {Picker} from "@react-native-picker/picker";
 import {awaitExpression} from "@babel/types";
 import {useFocusEffect} from "@react-navigation/native";
 
-useEffect(() => {
-    const printToken = async () => {
-        const token = await SecureStore.getItemAsync("refreshToken");
-        console.log("Aktueller Token:", token);
-    };
-    printToken();
-}, []);
+
+
+
 
 
 const initialRegion = {
@@ -44,6 +40,29 @@ const Map = () => {
     const [emoji, setEmoji] = useState<string>("🌲");
     const [activityTypes, setActivityTypes] = useState<{id: number, name: string, icon_url?: string}[]>([]);
     const [selectedActivityType, setSelectedActivityType] = useState<{id: number, name: string, icon_url?: string} | null>(null);
+    const [readOnly, setReadOnly] = useState(false);
+    const [activityTypesMap, setActivityTypesMap] = useState<{ [id: number]: string }>({});
+    const [userId, setUserId] = useState<number | null>(null);
+    const [selectedMarker, setSelectedMarker] = useState<MarkerType | null>(null);
+    const now = new Date();
+
+
+    useEffect(() => {
+        const printToken = async () => {
+            const token = await SecureStore.getItemAsync("refreshToken");
+            console.log("Aktueller Token:", token);
+        };
+        printToken();
+    }, []);
+
+    // UserId aus SecureStore holen
+    useEffect(() => {
+        const loadUser = async () => {
+            const id = await SecureStore.getItemAsync("userId");
+            if (id) setUserId(Number(id));
+        };
+        loadUser();
+    }, []);
 
 
     // 🔍 NEU: Suchbegriff
@@ -52,27 +71,62 @@ const Map = () => {
     const [showSuggestions, setShowSuggestions] = useState(true);
     const [isSearchActive, setIsSearchActive] = useState(false);
 
+// 1️⃣ Lade Aktivitätstypen und Marker gemeinsam
     useEffect(() => {
-        const loadActivityTypes = async () => {
+        const loadActivityTypesAndMarkers = async () => {
             try {
+                // Activity Types laden
                 const types = await getActivityTypes();
-                // Mappe activity_type_id auf id
-                const mappedTypes = types.map(t => ({
-                    id: t.activity_type_id,
-                    name: t.name,
-                    icon_url: t.icon_url
-                }));
+                const map: { [id: number]: string } = {};
+                const mappedTypes = types.map(t => {
+                    map[t.activity_type_id] = t.name;
+                    return {
+                        id: t.activity_type_id,
+                        name: t.name,
+                        emoji: t.icon_url?.length === 2 || t.icon_url?.length === 4 ? t.icon_url : undefined // prüft, ob icon_url ein Emoji ist
+                    };
+                });
+
                 setActivityTypes(mappedTypes);
+                setActivityTypesMap(map);
 
                 if (mappedTypes.length > 0 && !selectedActivityType) {
-                    setSelectedActivityType(mappedTypes[0]); // Default
+                    setSelectedActivityType(mappedTypes[0]);
                 }
+
+                // Activities (Marker) laden
+                const activities = await getAllActivities();
+                const formattedMarkers = activities
+                    .filter(a => a.latitude != null && a.longitude != null)
+                    .filter(a => new Date(a.end_time) > now)
+                    .map(a => {
+                        const type = activityTypes.find(t => t.id === a.activity_type_id);
+                        return {
+                            post_id: a.id,
+                            latitude: a.latitude,
+                            longitude: a.longitude,
+                            user_id: a.user_id,
+                            activityTypeName: type?.name || "Unbenannte Aktivität",
+                            title: type?.name || "Unbenannte Aktivität",
+                            description: a.description,
+                            start_time: a.start_time,
+                            end_time: a.end_time,
+                            status: a.status,
+                            emoji: type?.emoji || "📍",
+                        };
+                    });
+
+
+
+                setMarkers(formattedMarkers);
             } catch (err) {
-                console.error("Fehler beim Laden der Aktivitätstypen:", err);
+                console.error("Fehler beim Laden:", err);
             }
         };
-        loadActivityTypes();
+
+        loadActivityTypesAndMarkers();
     }, []);
+
 
 
 
@@ -102,35 +156,61 @@ const Map = () => {
 
     };
 
+    function formatDateTime(iso?: Date | string) {
+        if (!iso) return "-";
+        const d = iso instanceof Date ? iso : new Date(iso);
+        return d.toLocaleString("de-DE", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    }
+
+
 
 
     // Lade Marker beim Start
     useFocusEffect(
-        React.useCallback(()=>{
-        const loadMarkers = async () => {
-            try {
-                const activities = await getAllActivities();
-                const formattedMarkers = activities
-                    .filter(a => a.latitude != null && a.longitude != null)
-                    .map(a => ({
-                        post_id: a.id,
-                        latitude: a.latitude,
-                        longitude: a.longitude,
-                        title: a.activity_type_name || "Unbenannte Aktivität",
-                        description: a.description,
-                        start_time: a.start_time,
-                        end_time: a.end_time,
-                        status: a.status,
-                    }));
+        React.useCallback(() => {
+            const loadMarkers = async () => {
+                try {
+                    const activities = await getAllActivities();
+                    const formattedMarkers = activities
+                        .filter(a => a.latitude != null && a.longitude != null)
+                        .filter(a => new Date(a.end_time) > now)
+                        .map(a => {
+                            const type = activityTypes.find(t => t.id === a.activity_type_id);
+                            return {
+                                post_id: a.id,
+                                latitude: a.latitude,
+                                longitude: a.longitude,
+                                user_id: a.user_id,
+                                activityTypeName: type?.name || "Unbenannte Aktivität",
+                                title: type?.name || "Unbenannte Aktivität",
+                                description: a.description,
+                                start_time: a.start_time,
+                                end_time: a.end_time,
+                                status: a.status,
+                                emoji: type?.emoji || "📍",
+                            };
+                        });
 
-                setMarkers(formattedMarkers);
-            } catch (err) {
-                console.error("Fehler beim Laden der Aktivitäten:", err);
+
+
+                    setMarkers(formattedMarkers);
+                } catch (err) {
+                    console.error("Fehler beim Laden der Aktivitäten:", err);
+                }
+            };
+
+            if (Object.keys(activityTypesMap).length > 0) { // warte bis map da ist
+                loadMarkers();
             }
-        };
-        loadMarkers();
-    }, [])
+        }, [activityTypesMap]) // 👈 Dependency
     );
+
 
 
     // Öffnet Modal beim Klick auf die Map
@@ -140,6 +220,7 @@ const Map = () => {
         setTitle("");
         setDescription("");
         setModalVisible(true);
+        setReadOnly(false);
     };
 
     const [startDate, setStartDate] = useState(new Date());
@@ -171,11 +252,15 @@ const Map = () => {
                     post_id: savedActivity.id,
                     latitude: savedActivity.latitude,
                     longitude: savedActivity.longitude,
+                    activityTypeName: selectedActivityType.name,
                     title: selectedActivityType.name,
                     description: savedActivity.description,
                     start_time: savedActivity.start_time,
                     end_time: savedActivity.end_time,
                     status: savedActivity.status,
+                    user_id: userId,
+                    emoji: selectedActivityType.emoji || "📍",
+
                 },
             ]);
 
@@ -200,11 +285,16 @@ const Map = () => {
 
 
     const handleMarkerPress = (marker: MarkerType) => {
-        setTitle(marker.title ?? "Unbenannter Ort");
+        setSelectedMarker(marker); // <--- speichere den aktuellen Marker
+        setTitle(marker.activityTypeName);
         setDescription(marker.description ?? "");
         setEmoji(marker.emoji ?? "📍");
+        setStartDate(new Date(marker.start_time));
+        setEndDate(new Date(marker.end_time));
         setModalVisible(true);
+        setReadOnly(true);
     };
+
 
 
     // 🔍 Filtert Marker nach Suchbegriff (beschreibung)
@@ -263,6 +353,7 @@ const Map = () => {
             </View>
 
             {/* Modal für neue Marker */}
+            {/* Modal für Marker */}
             <Modal
                 animationType="slide"
                 transparent={true}
@@ -271,79 +362,106 @@ const Map = () => {
             >
                 <View style={styles.modalBackground}>
                     <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>Neue Aktivität</Text>
+                        {/* --- Titel & X-Button oben --- */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={styles.modalTitle}>{readOnly ? title : "Neue Aktivität"}</Text>
 
-                        {/* Activity Type Picker */}
-                        <Text style={{ fontWeight: "bold", marginBottom: 4 }}>Aktivitätstyp</Text>
-
-                        <View style={{ marginBottom: 12 }}>
-                            <Picker
-                                selectedValue={selectedActivityType?.id || ""}
-                                onValueChange={(value) => {
-                                    const numericValue = Number(value);
-                                    const selected = activityTypes.find((t) => t.id === numericValue);
-                                    setSelectedActivityType(selected || null);
-                                }}
+                            {/* Rotes X immer verfügbar */}
+                            <TouchableOpacity
+                                onPress={() => setModalVisible(false)}
+                                style={{ padding: 4 }}
                             >
-                                {activityTypes.map((type) => (
-                                    <Picker.Item key={type.id} label={type.name} value={type.id} />
-                                ))}
-                            </Picker>
-
+                                <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'red' }}>✕</Text>
+                            </TouchableOpacity>
                         </View>
 
-                        {/* Beschreibung */}
-                        <TextInput
-                            style={[styles.input, { height: 80 }]}
-                            placeholder="Beschreibung"
-                            value={description}
-                            onChangeText={setDescription}
-                            multiline
-                        />
+                        {readOnly ? (
+                            // --- Read-Only Ansicht ---
+                            <View>
+                                <Text style={{ fontWeight: "bold", marginTop: 8 }}>Beschreibung:</Text>
+                                <Text style={{ marginBottom: 8 }}>{description || "Keine Beschreibung"}</Text>
 
-                        {/* Optional: Emoji Picker */}
-                        <View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "center", marginBottom: 12 }}>
-                            {["📍", "🌲", "🏔️", "🏕️", "🏃", "🏈", "🏀", "🎾"].map((e, index) => (
+                                <Text style={{ fontWeight: "bold", marginTop: 8 }}>Dauer:</Text>
+                                <Text>
+                                    {formatDateTime(startDate)} – {formatDateTime(endDate)}
+                                </Text>
+
+                                {/* "Beitreten"-Button ohne Funktion */}
                                 <TouchableOpacity
-                                    key={`${e}-${index}`}
-                                    onPress={() => setEmoji(e)}
                                     style={[
-                                        styles.emojiButton,
-                                        emoji === e ? { borderWidth: 2, borderColor: "#007AFF" } : {},
+                                        styles.button,
+                                        {
+                                            backgroundColor:
+                                                selectedMarker?.user_id === userId ? "#007bff" : "#28A745",
+                                            marginTop: 16,
+                                        },
                                     ]}
+                                    onPress={() => {
+                                        if (selectedMarker?.user_id !== userId) {
+                                            // join logic hier
+                                        }
+                                    }}
                                 >
-                                    <Text style={{ fontSize: 28 }}>{e}</Text>
+                                    <Text style={{ color: "white", fontWeight: "bold" }}>
+                                        {selectedMarker?.user_id === userId ? "Bearbeiten" : "Beitreten"}
+                                    </Text>
                                 </TouchableOpacity>
-                            ))}
-                        </View>
 
-                        {/* Datum/Zeit Picker */}
-                        <DateTimePicker
-                            startDate={startDate}
-                            endDate={endDate}
-                            onChange={(start, end) => {
-                                setStartDate(start);
-                                setEndDate(end);
-                            }}
-                        />
 
-                        {/* Speichern Button */}
-                        <TouchableOpacity style={styles.button} onPress={handleSaveMarker}>
-                            <Text style={{ color: "white", fontWeight: "bold" }}>
-                                Speichern & Veröffentlichen
-                            </Text>
-                        </TouchableOpacity>
+                            </View>
+                        ) : (
+                            // --- Erstellen/Bearbeiten ---
+                            <>
+                                {/* Activity Type Picker */}
+                                <Text style={{ fontWeight: "bold", marginBottom: 4 }}>Aktivitätstyp</Text>
+                                <View style={{ marginBottom: 12 }}>
+                                    <Picker
+                                        selectedValue={selectedActivityType?.id || ""}
+                                        onValueChange={(value) => {
+                                            const numericValue = Number(value);
+                                            const selected = activityTypes.find((t) => t.id === numericValue);
+                                            setSelectedActivityType(selected || null);
+                                        }}
+                                    >
+                                        {activityTypes.map((type) => (
+                                            <Picker.Item key={type.id} label={type.name} value={type.id} />
+                                        ))}
+                                    </Picker>
+                                </View>
 
-                        {/* Abbrechen Button */}
-                        <TouchableOpacity
-                            style={[styles.button, { backgroundColor: "#aaa", marginTop: 8 }]}
-                            onPress={() => setModalVisible(false)}
-                        >
-                            <Text style={{ color: "white" }}>Abbrechen</Text>
-                        </TouchableOpacity>
+                                {/* Beschreibung */}
+                                <TextInput
+                                    style={[styles.input, { height: 80 }]}
+                                    placeholder="Beschreibung"
+                                    value={description}
+                                    onChangeText={setDescription}
+                                    multiline
+                                />
+
+                                {/* Datum/Zeit Picker */}
+                                <DateTimePicker
+                                    startDate={startDate}
+                                    endDate={endDate}
+                                    onChange={(start, end) => {
+                                        setStartDate(start);
+                                        setEndDate(end);
+                                    }}
+                                />
+
+                                {/* Speichern Button */}
+                                <TouchableOpacity style={styles.button} onPress={handleSaveMarker}>
+                                    <Text style={{ color: "white", fontWeight: "bold" }}>
+                                        Speichern & Veröffentlichen
+                                    </Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 </View>
             </Modal>
+
+
+
 
         </View>
     );
