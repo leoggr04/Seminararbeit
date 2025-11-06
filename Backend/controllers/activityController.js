@@ -1,4 +1,5 @@
 const ActivityService = require('../services/activityService');
+const { listParticipants: listParticipantsSvc, joinPost: joinPostSvc, leavePost: leavePostSvc } = require('../services/activityService');
 
 async function createType(req, res) {
   const { name, icon_url } = req.body;
@@ -427,3 +428,106 @@ module.exports = {
   deletePost,
   listPostsByUser,
 };
+
+/**
+ * @openapi
+ * /api/activities/posts/{id}/participants:
+ *   get:
+ *     tags:
+ *       - activity
+ *     summary: List participants of a post
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of participants
+ */
+async function listParticipants(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
+  try {
+    const participants = await listParticipantsSvc(id);
+    return res.json({ data: participants });
+  } catch (err) {
+    if (err.message === 'not_found') return res.status(404).json({ error: 'not_found' });
+    console.error(err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
+/**
+ * @openapi
+ * /api/activities/posts/{id}/join:
+ *   post:
+ *     tags:
+ *       - activity
+ *     summary: Join an activity post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Joined
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Post not found
+ */
+async function joinPost(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
+  try {
+    const added = await joinPostSvc(id, req.user.user_id);
+    return res.json({ success: true, added });
+  } catch (err) {
+    if (err.message === 'not_found') return res.status(404).json({ error: 'not_found' });
+    if (err.message === 'owner_cannot_join') return res.status(400).json({ error: 'owner_cannot_join' });
+    console.error(err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
+/**
+ * @openapi
+ * /api/activities/posts/{id}/leave:
+ *   post:
+ *     tags:
+ *       - activity
+ *     summary: Leave an activity post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Left
+ */
+async function leavePost(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) return res.status(400).json({ error: 'invalid id' });
+  try {
+    const removed = await leavePostSvc(id, req.user.user_id);
+    return res.json({ success: true, removed });
+  } catch (err) {
+    if (err.message === 'not_found') return res.status(404).json({ error: 'not_found' });
+    console.error(err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
+// append new handlers to exports
+module.exports = Object.assign(module.exports, { listParticipants, joinPost, leavePost });
+

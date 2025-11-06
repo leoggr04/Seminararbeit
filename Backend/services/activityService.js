@@ -1,5 +1,6 @@
 const ActivityPost = require('../models/activityPostModel');
 const ActivityType = require('../models/activityTypeModel');
+const Participants = require('../models/participantsModel');
 
 async function createType(name, icon_url) {
   return ActivityType.createActivityType(name, icon_url);
@@ -36,6 +37,28 @@ async function deletePost(postId, userId) {
   return ActivityPost.deleteActivityPost(postId);
 }
 
+async function joinPost(postId, userId) {
+  // ensure post exists
+  const post = await ActivityPost.getActivityPostById(postId);
+  if (!post) throw new Error('not_found');
+  if (post.user_id === userId) throw new Error('owner_cannot_join');
+  const added = await Participants.addParticipant(postId, userId);
+  return added;
+}
+
+async function leavePost(postId, userId) {
+  const post = await ActivityPost.getActivityPostById(postId);
+  if (!post) throw new Error('not_found');
+  const removed = await Participants.removeParticipant(postId, userId);
+  return removed;
+}
+
+async function listParticipants(postId) {
+  const post = await ActivityPost.getActivityPostById(postId);
+  if (!post) throw new Error('not_found');
+  return Participants.listParticipants(postId);
+}
+
 async function listPostsByUser(userId) {
   return ActivityPost.getActivityPostsByUser(userId);
 }
@@ -49,4 +72,7 @@ module.exports = {
   updatePost,
   deletePost,
   listPostsByUser,
+  joinPost,
+  leavePost,
+  listParticipants,
 };
