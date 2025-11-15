@@ -1,5 +1,5 @@
 import React, {useEffect, useState} from "react";
-import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert} from "react-native";
+import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator} from "react-native";
 import {useNavigation, useRouter} from "expo-router";
 import Icon from "@expo/vector-icons/Ionicons";
 import {getUserById, loginUser, refreshAccessToken} from "@/services/api"; // 👈 importiere deinen Service
@@ -19,6 +19,7 @@ export default function LoginScreen() {
     useEffect(() => {
         const checkToken = async () => {
             try {
+                setLoading(true);
                 const accessToken = await SecureStore.getItemAsync("authToken");
                 const refreshTokenLokal = await SecureStore.getItemAsync("refreshToken");
                 const userId = await SecureStore.getItemAsync("userId");
@@ -61,7 +62,6 @@ export default function LoginScreen() {
     }, []);
 
 
-
     const handleLogin = async () => {
         // Prüfen, ob E-Mail und Passwort eingegeben wurden
         if (!email || !password) {
@@ -76,7 +76,7 @@ export default function LoginScreen() {
             const response = await loginUser(email, password);
 
             // Response auspacken: Token(s) und Userdaten
-            const { accessToken, refreshToken, user } = response.data;
+            const {accessToken, refreshToken, user} = response.data;
 
             if (!accessToken || !refreshToken || !user) {
                 throw new Error("Ungültige Login-Antwort vom Server.");
@@ -113,54 +113,63 @@ export default function LoginScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Login</Text>
-
-            {/* E-Mail Input */}
-            <View style={styles.inputContainer}>
-                <Icon name="mail-outline" size={24} color="#888" style={styles.icon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="E-Mail"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                />
-            </View>
-
-            {/* Passwort Input */}
-            <View style={styles.inputContainerPswd}>
-                <Icon name="lock-closed-outline" size={24} color="#888" style={styles.icon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Passwort"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                />
-            </View>
-
-            <View style={{ paddingTop: 5, justifyContent: 'center' }}>
-
-                {/* Hinweis über dem Login */}
-                <Text style={{ fontSize: 15, marginBottom: 30 }}>
-                    Noch kein Konto?{' '}
-                    <Text
-                        style={{ color: 'blue', textDecorationLine: 'underline' }}
-                        onPress={() => router.push("/signup")}
-                    >
-                        Hier
-                    </Text>{' '}
-                    klicken zum Registrieren.
-                </Text>
+            {loading ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large"/>
                 </View>
+            ) : (
+                <>
+                    <Text style={styles.title}>Login</Text>
 
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                <Text style={styles.buttonText}>Einloggen</Text>
-            </TouchableOpacity>
+                    {/* E-Mail Input */}
+                    <View style={styles.inputContainer}>
+                        <Icon name="mail-outline" size={24} color="#888" style={styles.icon}/>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="E-Mail"
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    {/* Passwort Input */}
+                    <View style={styles.inputContainerPswd}>
+                        <Icon name="lock-closed-outline" size={24} color="#888" style={styles.icon}/>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Passwort"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry
+                        />
+                    </View>
+
+                    <View style={{paddingTop: 5, justifyContent: 'center'}}>
+                        {/* Hinweis über dem Login */}
+                        <Text style={{fontSize: 15, marginBottom: 30}}>
+                            Noch kein Konto?{' '}
+                            <Text
+                                style={{color: 'blue', textDecorationLine: 'underline'}}
+                                onPress={() => router.push("/signup")}
+                            >
+                                Hier
+                            </Text>{' '}
+                            klicken zum Registrieren.
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.button} onPress={handleLogin}>
+                        <Text style={styles.buttonText}>Einloggen</Text>
+                    </TouchableOpacity>
+                </>
+            )}
         </View>
     );
 }
+
+
 
 const styles = StyleSheet.create({
     container: {

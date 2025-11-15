@@ -153,3 +153,8 @@ export const updateActivity = async (postId: number, data: { description?: strin
     const res = await api.put(`/activities/posts/${postId}`, data);
     return res.data;
 };
+
+export const getAlLParticipantsOfPost = async (postId: number) => {
+    const res = await api.get(`/activities/posts/${postId}/participants`);
+    return res.data.data;
+}
