@@ -1,4 +1,11 @@
-// components/DeleteActivityModal.tsx
+/*
+Component for the a Delete Activity Modal.
+Can be used with visible, onClose, onConfirm and activityName.
+Modal needs to know the ID of a Activity
+
+Creator: David Pleyer
+Version: v1
+*/
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
 

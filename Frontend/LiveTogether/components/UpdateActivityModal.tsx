@@ -1,3 +1,12 @@
+/*
+Component for the Update Activity Modal.
+Can be used with visible,text,onChangeText,onClose,onSave and hasChanged.
+Modal needs to know the ID of a Activity
+
+Creator: David Pleyer
+Version: v1
+*/
+
 import React from "react";
 import {
     View,

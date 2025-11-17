@@ -1,3 +1,11 @@
+/*
+Component for showing the participants of a activity.
+Modal needs to know the ID of a Activity.
+
+Creator: David Pleyer
+Version: v1
+*/
+
 import React, { useEffect, useState } from "react";
 import {
     View,
