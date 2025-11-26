@@ -63,6 +63,11 @@ async function listPostsByUser(userId) {
   return ActivityPost.getActivityPostsByUser(userId);
 }
 
+async function listPostsBySelf(userId) {
+  // Return posts the user created OR posts the user joined
+  return ActivityPost.getActivityPostsByUserOrJoined(userId);
+}
+
 module.exports = {
   createType,
   listTypes,
@@ -72,6 +77,7 @@ module.exports = {
   updatePost,
   deletePost,
   listPostsByUser,
+  listPostsBySelf,
   joinPost,
   leavePost,
   listParticipants,
