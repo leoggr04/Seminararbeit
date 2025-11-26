@@ -63,6 +63,22 @@ const Feed: React.FC = () => {
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [deletePostId, setDeletePostId] = useState<number | null>(null);
 
+    useEffect(() => {
+        const requestLocationPermission = async () => {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert(
+                    "Berechtigung benötigt",
+                    "Die App benötigt Zugriff auf den Standort, um Orte anzuzeigen."
+                );
+            }
+        };
+
+        requestLocationPermission();
+    }, []);
+
+
+
     const openEditModal = (activity: Activity) => {
         setEditPostId(activity.post_id);
         setEditText(activity.description || "");
@@ -100,7 +116,7 @@ const Feed: React.FC = () => {
         if (editPostId == null || !hasChanged) return;
 
         try {
-            await updateActivity(editPostId, { description: editText }, { timeout: 5000 }); // 5 Sekunden
+            await updateActivity(editPostId, { description: editText }); // 5 Sekunden
             showToast("Aktivität erfolgreich aktualisiert! 🎉", "success");
         } catch (err) {
             console.error("Fehler beim Bearbeiten:", err);
@@ -188,10 +204,18 @@ const Feed: React.FC = () => {
                             latitude: a.latitude,
                             longitude: a.longitude,
                         });
+
+                        const locationName =
+                            place?.city ||
+                            place?.region ||
+                            place?.name ||
+                            place?.street ||
+                            `${round(a.latitude)}, ${round(a.longitude)}`;
+
                         if (isMounted) {
                             setLocations(prev => ({
                                 ...prev,
-                                [a.post_id]: place?.city || place?.region || `${round(a.latitude)}, ${round(a.longitude)}`,
+                                [a.post_id]: locationName,
                             }));
                         }
                     } catch (err) {
@@ -207,11 +231,11 @@ const Feed: React.FC = () => {
         };
 
         fetchLocations();
-
         return () => {
             isMounted = false;
         };
     }, [activities]);
+
 
 
     const onRefresh = useCallback(async () => {

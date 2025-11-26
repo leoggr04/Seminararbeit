@@ -13,15 +13,13 @@ import SearchBar from "@/components/SearchBar";
 import { createMarker, getMarkers, MarkerType } from "@/services/appwrite";
 import MarkerWithEmoji from "@/components/MarkerWithEmoji";
 import DateTimePicker from "@/components/DateTimePicker";
-import {createActivity, deleteActivity, getActivityTypes, getAllActivities, getUserActivities} from "@/services/api";
+import {createActivity, deleteActivity, getActivityTypes, getAllActivities, getUserActivities, joinActivity} from "@/services/api";
 import * as SecureStore from "expo-secure-store";
 import {Picker} from "@react-native-picker/picker";
 import {awaitExpression} from "@babel/types";
 import {useFocusEffect} from "@react-navigation/native";
-
-
-
-
+import * as Location from "expo-location"
+import {AntDesign} from "@expo/vector-icons";
 
 
 const initialRegion = {
@@ -45,6 +43,21 @@ const Map = () => {
     const [userId, setUserId] = useState<number | null>(null);
     const [selectedMarker, setSelectedMarker] = useState<MarkerType | null>(null);
     const now = new Date();
+    const mapRef = React.useRef<MapView>(null);
+
+    const requestLocationPermission = async () => {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Berechtigung benötigt", "Die App benötigt Zugriff auf den Standort.");
+            return false;
+        }
+        return true;
+    };
+
+    useEffect(() => {
+        requestLocationPermission();
+    }, []);
+
 
 
     useEffect(() => {
@@ -102,7 +115,7 @@ const Map = () => {
                     .map(a => {
                         const type = activityTypes.find(t => t.id === a.activity_type_id);
                         return {
-                            post_id: a.id,
+                            post_id: a.post_id,
                             latitude: a.latitude,
                             longitude: a.longitude,
                             user_id: a.user_id,
@@ -183,7 +196,7 @@ const Map = () => {
                         .map(a => {
                             const type = activityTypes.find(t => t.id === a.activity_type_id);
                             return {
-                                post_id: a.id,
+                                post_id: a.post_id,
                                 latitude: a.latitude,
                                 longitude: a.longitude,
                                 user_id: a.user_id,
@@ -296,6 +309,43 @@ const Map = () => {
     };
 
 
+    const handleJoinActivity = async () => {
+        if (!selectedMarker) return;
+
+        try {
+            console.log(selectedMarker.post_id);
+            const response = await joinActivity(selectedMarker.post_id);
+
+            Alert.alert("Beigetreten ✅", "Du nimmst jetzt an dieser Aktivität teil!");
+            setModalVisible(false);
+
+            // OPTIONAL: Marker aktualisieren
+            // setMarkers(...) falls du später Teilnehmer anzeigen willst
+
+        } catch (err) {
+            console.error(err);
+            Alert.alert("Fehler", "Beitreten fehlgeschlagen.");
+        }
+    };
+
+    const goToUserLocation = async () => {
+        const hasPermission = await requestLocationPermission();
+        if (!hasPermission) return;
+
+        const location = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = location.coords;
+
+        mapRef.current?.animateToRegion({
+            latitude,
+            longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+        }, 1000); // Dauer in ms
+    };
+
+
+
+
 
     // 🔍 Filtert Marker nach Suchbegriff (beschreibung)
     const filteredMarkers = markers.filter(marker =>
@@ -304,12 +354,30 @@ const Map = () => {
 
     return (
         <View style={{ flex: 1 }}>
+            <TouchableOpacity
+                onPress={goToUserLocation}
+                style={{
+                    position: "absolute",
+                    bottom: 110,      // näher an den unteren Rand
+                    right: 20,
+                    backgroundColor: "white",
+                    padding: 18,
+                    borderRadius: 50,
+                    elevation: 5,    // Android
+                    zIndex: 10,      // iOS
+                }}
+            >
+                <AntDesign name="aim" size={24} color="black"/>
+            </TouchableOpacity>
+
+
             <MapView
+                ref={mapRef}
                 style={StyleSheet.absoluteFill}
                 provider={PROVIDER_GOOGLE}
                 initialRegion={initialRegion}
                 showsUserLocation
-                showsMyLocationButton={true}
+                showsMyLocationButton={false}
                 showsCompass={false}
                 showsPointsOfInterest
                 showsBuildings
@@ -386,7 +454,7 @@ const Map = () => {
                                     {formatDateTime(startDate)} – {formatDateTime(endDate)}
                                 </Text>
 
-                                {/* "Beitreten"-Button ohne Funktion */}
+                                {/* "Beitreten"-Button */}
                                 <TouchableOpacity
                                     style={[
                                         styles.button,
@@ -397,8 +465,10 @@ const Map = () => {
                                         },
                                     ]}
                                     onPress={() => {
-                                        if (selectedMarker?.user_id !== userId) {
-                                            // join logic hier
+                                        if (selectedMarker?.user_id === userId) {
+                                            // später: bearbeiten
+                                        } else {
+                                            handleJoinActivity();  // <---- Wichtig!!
                                         }
                                     }}
                                 >

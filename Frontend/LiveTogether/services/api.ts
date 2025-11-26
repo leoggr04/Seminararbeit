@@ -1,7 +1,7 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
-const API_BASE_URL = "http://192.168.0.100:3000/api";
+const API_BASE_URL = "http://192.168.124.146:3000/api";
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -157,4 +157,8 @@ export const updateActivity = async (postId: number, data: { description?: strin
 export const getAlLParticipantsOfPost = async (postId: number) => {
     const res = await api.get(`/activities/posts/${postId}/participants`);
     return res.data.data;
+}
+export const joinActivity = async (postId:number)=>{
+    const res = await api.post(`/activities/posts/${postId}/join`);
+    return res.data;
 }
