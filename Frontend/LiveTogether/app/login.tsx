@@ -1,8 +1,8 @@
 import React, {useEffect, useState} from "react";
-import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert} from "react-native";
+import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator} from "react-native";
 import {useNavigation, useRouter} from "expo-router";
 import Icon from "@expo/vector-icons/Ionicons";
-import {getUserById, loginUser} from "@/services/api"; // 👈 importiere deinen Service
+import {getUserById, loginUser, refreshAccessToken} from "@/services/api"; // 👈 importiere deinen Service
 import {useUser} from "@/components/UserContext";
 import * as SecureStore from "expo-secure-store";
 import {User} from "@/types/types";
@@ -19,20 +19,32 @@ export default function LoginScreen() {
     useEffect(() => {
         const checkToken = async () => {
             try {
+                setLoading(true);
                 const accessToken = await SecureStore.getItemAsync("authToken");
-                const refreshToken = await SecureStore.getItemAsync("refreshToken");
+                const refreshTokenLokal = await SecureStore.getItemAsync("refreshToken");
                 const userId = await SecureStore.getItemAsync("userId");
                 // Wenn Token existieren, ggf. Userdaten abrufen und einloggen
-                if (accessToken && refreshToken && userId && !devmode) {
+                if (accessToken && refreshTokenLokal && userId && !devmode) {
                     // Beispiel: User-Daten von API holen (optional)
                     // const response = await getUserById(userId, accessToken);
                     // const user = response.data.user;
 
                     // Einfachheitshalber Token nutzen, wenn du bereits User im Token hast:
                     // login(user.name, user.email, user.image, user.id);
-
+                    console.log("Alter Token:", accessToken);
                     // Weiterleitung
                     const response = await getUserById(userId);
+                    console.log("Test:");
+                    const newToken = await refreshAccessToken(refreshTokenLokal);
+
+                    const accesTokenNew = newToken.data.accessToken;
+                    const refreshTokenNew = newToken.data.refreshToken;
+
+                    // neue Tokens speichern
+                    await SecureStore.setItemAsync("authToken", String(accesTokenNew));
+                    await SecureStore.setItemAsync("refreshToken", String(refreshTokenNew));
+                    console.log("Neuer Token:", accesTokenNew);
+
                     const user = response.data.data;
 
                     login(user.first_name, user.last_name, user.email, user.image, user.user_id);
@@ -50,7 +62,6 @@ export default function LoginScreen() {
     }, []);
 
 
-
     const handleLogin = async () => {
         // Prüfen, ob E-Mail und Passwort eingegeben wurden
         if (!email || !password) {
@@ -65,7 +76,7 @@ export default function LoginScreen() {
             const response = await loginUser(email, password);
 
             // Response auspacken: Token(s) und Userdaten
-            const { accessToken, refreshToken, user } = response.data;
+            const {accessToken, refreshToken, user} = response.data;
 
             if (!accessToken || !refreshToken || !user) {
                 throw new Error("Ungültige Login-Antwort vom Server.");
@@ -102,54 +113,63 @@ export default function LoginScreen() {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Login</Text>
-
-            {/* E-Mail Input */}
-            <View style={styles.inputContainer}>
-                <Icon name="mail-outline" size={24} color="#888" style={styles.icon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="E-Mail"
-                    value={email}
-                    onChangeText={setEmail}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                />
-            </View>
-
-            {/* Passwort Input */}
-            <View style={styles.inputContainerPswd}>
-                <Icon name="lock-closed-outline" size={24} color="#888" style={styles.icon} />
-                <TextInput
-                    style={styles.input}
-                    placeholder="Passwort"
-                    value={password}
-                    onChangeText={setPassword}
-                    secureTextEntry
-                />
-            </View>
-
-            <View style={{ paddingTop: 5, justifyContent: 'center' }}>
-
-                {/* Hinweis über dem Login */}
-                <Text style={{ fontSize: 15, marginBottom: 30 }}>
-                    Noch kein Konto?{' '}
-                    <Text
-                        style={{ color: 'blue', textDecorationLine: 'underline' }}
-                        onPress={() => router.push("/signup")}
-                    >
-                        Hier
-                    </Text>{' '}
-                    klicken zum Registrieren.
-                </Text>
+            {loading ? (
+                <View style={styles.center}>
+                    <ActivityIndicator size="large"/>
                 </View>
+            ) : (
+                <>
+                    <Text style={styles.title}>Login</Text>
 
-            <TouchableOpacity style={styles.button} onPress={handleLogin}>
-                <Text style={styles.buttonText}>Einloggen</Text>
-            </TouchableOpacity>
+                    {/* E-Mail Input */}
+                    <View style={styles.inputContainer}>
+                        <Icon name="mail-outline" size={24} color="#888" style={styles.icon}/>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="E-Mail"
+                            value={email}
+                            onChangeText={setEmail}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
+                    </View>
+
+                    {/* Passwort Input */}
+                    <View style={styles.inputContainerPswd}>
+                        <Icon name="lock-closed-outline" size={24} color="#888" style={styles.icon}/>
+                        <TextInput
+                            style={styles.input}
+                            placeholder="Passwort"
+                            value={password}
+                            onChangeText={setPassword}
+                            secureTextEntry
+                        />
+                    </View>
+
+                    <View style={{paddingTop: 5, justifyContent: 'center'}}>
+                        {/* Hinweis über dem Login */}
+                        <Text style={{fontSize: 15, marginBottom: 30}}>
+                            Noch kein Konto?{' '}
+                            <Text
+                                style={{color: 'blue', textDecorationLine: 'underline'}}
+                                onPress={() => router.push("/signup")}
+                            >
+                                Hier
+                            </Text>{' '}
+                            klicken zum Registrieren.
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.button} onPress={handleLogin}>
+                        <Text style={styles.buttonText}>Einloggen</Text>
+                    </TouchableOpacity>
+                </>
+            )}
         </View>
     );
 }
+
+
 
 const styles = StyleSheet.create({
     container: {

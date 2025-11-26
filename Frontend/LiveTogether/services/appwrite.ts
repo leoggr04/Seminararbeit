@@ -14,15 +14,17 @@ const database = new Databases(client);
 
 // Marker Typ
 export type MarkerType = {
+    post_id?: number;          // ID vom Backend
     latitude: number;
     longitude: number;
-    title?: string;
+    title?: string;            // z.B. activity type name
     description?: string;
-    emoji?: string;
-    userId?: string;
-    startDate: string;
-    endDate: string;
+    start_time: string;
+    end_time: string;
+    status?: string;
+    emoji?: string;            // optional: kannst aus icon_url ableiten
 };
+
 
 // save Marker
 export const createMarker = async (marker: MarkerType) => {
