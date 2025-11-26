@@ -41,7 +41,7 @@ async function useRefreshToken(tokenPlain) {
   const row = res.rows[0];
   if (!row) throw new Error('invalid_refresh');
 
-  // rotate: delete old token and create new
+  // rotate
   await db.query('DELETE FROM user_refresh_tokens WHERE id = $1', [row.id]);
   const newPlain = generateRefreshTokenPlain();
   await saveRefreshToken(row.user_id, newPlain);

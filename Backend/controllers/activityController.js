@@ -382,6 +382,35 @@ async function deletePost(req, res) {
  *         description: Server error
  */
 
+async function listPostsBySelf(req, res) {
+  const userId = req.user.user_id;
+  const posts = await ActivityService.listPostsBySelf(userId);
+  return res.json({ data: posts });
+}
+
+/**
+ * @openapi
+ * /api/activities/self:
+ *   get:
+ *     tags:
+ *       - activity
+ *     summary: List all posts created or joined by the authenticated user
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of posts by self
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ActivityPost'
+ */
+
 async function listPostsByUser(req, res) {
   const userId = parseInt(req.params.userId, 10);
   if (Number.isNaN(userId)) return res.status(400).json({ error: 'invalid id' });
@@ -427,6 +456,7 @@ module.exports = {
   updatePost,
   deletePost,
   listPostsByUser,
+  listPostsBySelf,
 };
 
 /**

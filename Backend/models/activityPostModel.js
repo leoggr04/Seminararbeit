@@ -18,6 +18,16 @@ async function getActivityPostsByUser(userId) {
   return res.rows;
 }
 
+async function getActivityPostsByUserOrJoined(userId) {
+  const q = `SELECT DISTINCT ap.*
+             FROM activity_posts ap
+             LEFT JOIN activity_participants p ON ap.post_id = p.post_id
+             WHERE ap.user_id = $1 OR p.user_id = $1
+             ORDER BY ap.created_at DESC`;
+  const res = await db.query(q, [userId]);
+  return res.rows;
+}
+
 async function listActivityPosts({ limit = 50, offset = 0 } = {}) {
   const res = await db.query('SELECT * FROM activity_posts ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
   return res.rows;
@@ -43,6 +53,7 @@ module.exports = {
   createActivityPost,
   getActivityPostById,
   getActivityPostsByUser,
+  getActivityPostsByUserOrJoined,
   listActivityPosts,
   updateActivityPost,
   deleteActivityPost,
