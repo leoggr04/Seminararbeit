@@ -1,7 +1,8 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
+import {array} from "yup";
 
-const API_BASE_URL = "http://192.168.124.146:3000/api";
+const API_BASE_URL = "http://192.168.0.101:3000/api";
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -113,7 +114,9 @@ export const requestPasswordReset = (email: string) =>
 export const resetPassword = (token: string, newPassword: string) =>
     api.post("/users/reset", { token, newPassword });
 
-// === AKTIVITÄTEN ===
+//=========================================================================
+//  AKTIVITÄTEN
+//=========================================================================
 // Alle folgenden Calls nutzen automatisch den Token durch den Interceptor ✅
 
 export const getActivityTypes = async () => {
@@ -161,4 +164,42 @@ export const getAlLParticipantsOfPost = async (postId: number) => {
 export const joinActivity = async (postId:number)=>{
     const res = await api.post(`/activities/posts/${postId}/join`);
     return res.data;
+}
+
+//=========================================================================
+//  chat
+//=========================================================================
+export const createNewChat = async (participantIds:number[])=>{
+    const res = await api.post("/chats", {participantIds});
+    return res.data;
+}
+
+export const listChats = async() =>{
+    const res = await api.get("/chats");
+    return res.data.data;
+}
+
+export const addParticipantToChat = async (chatId:number,userId:number)=>{
+    const res = await api.post(`/chats/${chatId}/participants`, {userId});
+    return res.data;
+}
+
+export const listChatParticipants = async(chatId:number) =>{
+    const res = await api.get(`/chats/${chatId}/participants`);
+    return res.data.data;
+}
+
+export const deleteChatParticipant = async (chatId:number, userId:number) =>{
+    const res = await api.delete(`/chats/${chatId}/participants/${userId}`);
+    return res.data;
+}
+
+export const sendMessage = async (chatId:number,content:string) => {
+    const res = await api.post(`/chats/${chatId}/messages`, {content});
+    return res.data;
+}
+
+export const listChatMessages = async(chatId:number) =>{
+    const res = await api.get(`/chats/${chatId}/messages`);
+    return res.data.data;
 }
