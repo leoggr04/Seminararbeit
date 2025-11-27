@@ -23,7 +23,6 @@ async function listPosts(opts) {
 }
 
 async function updatePost(postId, userId, fields) {
-  // Ensure only owner can update
   const post = await ActivityPost.getActivityPostById(postId);
   if (!post) throw new Error('not_found');
   if (post.user_id !== userId) throw new Error('forbidden');
@@ -64,7 +63,6 @@ async function listPostsByUser(userId) {
 }
 
 async function listPostsBySelf(userId) {
-  // Return posts the user created OR posts the user joined
   return ActivityPost.getActivityPostsByUserOrJoined(userId);
 }
 

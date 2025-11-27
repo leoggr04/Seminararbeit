@@ -34,7 +34,6 @@ async function listActivityPosts({ limit = 50, offset = 0 } = {}) {
 }
 
 async function updateActivityPost(postId, fields = {}) {
-  // Build dynamic SET clause
   const keys = Object.keys(fields);
   if (keys.length === 0) return getActivityPostById(postId);
   const setParts = keys.map((k, i) => `${k} = $${i + 1}`);

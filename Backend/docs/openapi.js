@@ -25,6 +25,7 @@ const options = {
           type: 'object',
           properties: {
             chat_id: { type: 'integer', example: 1 },
+            chat_name: { type: 'string', example: 'Friday Running Group' },
             created_at: { type: 'string', format: 'date-time', example: '2025-11-10T12:00:00Z' }
           }
         },
