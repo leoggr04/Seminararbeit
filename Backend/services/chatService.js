@@ -3,9 +3,8 @@ const ChatParticipant = require('../models/chatParticipantModel');
 const Message = require('../models/messageModel');
 const Notification = require('../models/notificationModel');
 
-async function createChat(participantIds = []) {
-  // create chat and add participants
-  const chat = await Chat.createChat();
+async function createChat(participantIds = [], chatName = null) {
+  const chat = await Chat.createChat(chatName);
   const chatId = chat.chat_id;
   for (const uid of participantIds) {
     await ChatParticipant.addParticipant(chatId, uid);
