@@ -16,6 +16,9 @@ const ChatService = require('../services/chatService');
  *           schema:
  *             type: object
  *             properties:
+ *               chat_name:
+ *                 type: string
+ *                 example: "Friday Running Group"
  *               participantIds:
  *                 type: array
  *                 items:
@@ -30,9 +33,9 @@ const ChatService = require('../services/chatService');
  *               $ref: '#/components/schemas/Chat'
  */
 async function createChat(req, res) {
-  const { participantIds } = req.body || {};
+  const { participantIds, chat_name } = req.body || {};
   try {
-    const chat = await ChatService.createChat(participantIds || []);
+    const chat = await ChatService.createChat(participantIds || [], chat_name || null);
     return res.status(201).json(chat);
   } catch (err) {
     console.error(err);

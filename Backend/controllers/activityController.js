@@ -158,11 +158,6 @@ async function createPost(req, res) {
  *                 format: float
  *                 nullable: true
  *                 example: 11.5820
- *               status:
- *                 type: string
- *                 enum: [offen, abgeschlossen, abgebrochen]
- *                 default: offen
- *                 example: offen
  *     responses:
  *       201:
  *         description: Successfully created activity post
@@ -314,12 +309,48 @@ async function updatePost(req, res) {
  *           schema:
  *             type: object
  *             properties:
+ *               activity_type_id:
+ *                 type: integer
+ *                 description: ID of the activity type
+ *                 example: 2
  *               description:
  *                 type: string
+ *                 description: Human readable description of the activity
  *                 example: "Geänderter Lauf am Nachmittag"
+ *               start_time:
+ *                 type: string
+ *                 format: date-time
+ *                 description: ISO 8601 start time
+ *                 example: "2025-11-27T16:30:00Z"
+ *               end_time:
+ *                 type: string
+ *                 format: date-time
+ *                 nullable: true
+ *                 description: ISO 8601 end time (optional)
+ *                 example: "2025-11-27T17:15:00Z"
+ *               latitude:
+ *                 type: number
+ *                 format: float
+ *                 description: Optional location latitude
+ *                 example: 48.1351
+ *               longitude:
+ *                 type: number
+ *                 format: float
+ *                 description: Optional location longitude
+ *                 example: 11.5820
  *               status:
  *                 type: string
  *                 enum: [offen, abgeschlossen, abgebrochen]
+ *                 description: Post status
+ *                 example: offen
+ *           example:
+ *             activity_type_id: 2
+ *             description: "Evening run by the river"
+ *             start_time: "2025-11-27T18:00:00Z"
+ *             end_time: "2025-11-27T19:00:00Z"
+ *             latitude: 48.137154
+ *             longitude: 11.576124
+ *             status: offen
  *     responses:
  *       200:
  *         description: Updated activity post
