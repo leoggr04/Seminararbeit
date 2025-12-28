@@ -234,6 +234,8 @@ async function getPost(req, res) {
  *         schema:
  *           type: integer
  *         description: ID of the activity post
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Activity post found
@@ -261,11 +263,13 @@ async function listPosts(req, res) {
  *     responses:
  *       200:
  *         description: List of activity posts
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
+ *     security:
+ *       - bearerAuth: []
+ *     content:
+ *       application/json:
+ *         schema:
+ *           type: object
+ *           properties:
  *                 data:
  *                   type: array
  *                   items:
@@ -465,11 +469,13 @@ async function listPostsByUser(req, res) {
  *     responses:
  *       200:
  *         description: List of posts by user
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
+ *     security:
+ *       - bearerAuth: []
+ *     content:
+ *       application/json:
+ *         schema:
+ *           type: object
+ *           properties:
  *                 data:
  *                   type: array
  *                   items:
@@ -497,6 +503,8 @@ module.exports = {
  *     tags:
  *       - activity
  *     summary: List participants of a post
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

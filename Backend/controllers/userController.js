@@ -8,6 +8,8 @@ const userService = require('../services/userService');
  *     tags:
  *       - users
  *     summary: Get a list of users
+ *     security:
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: A list of users
@@ -46,6 +48,8 @@ async function getUser(req, res) {
  *     tags:
  *       - users
  *     summary: Get a user by id
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

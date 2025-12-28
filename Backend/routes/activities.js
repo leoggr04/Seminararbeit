@@ -9,16 +9,16 @@ router.get('/types', ActivityController.listTypes);
 
 // Activity posts
 router.post('/posts', authenticate, ActivityController.createPost);
-router.get('/posts', ActivityController.listPosts);
-router.get('/posts/:id', ActivityController.getPost);
+router.get('/posts', authenticate, ActivityController.listPosts);
+router.get('/posts/:id', authenticate, ActivityController.getPost);
 router.put('/posts/:id', authenticate, ActivityController.updatePost);
 router.delete('/posts/:id', authenticate, ActivityController.deletePost);
 
 // posts by user
-router.get('/user/:userId', ActivityController.listPostsByUser);
+router.get('/user/:userId', authenticate, ActivityController.listPostsByUser);
 router.get('/self', authenticate, ActivityController.listPostsBySelf);
 // participants endpoints
-router.get('/posts/:id/participants', ActivityController.listParticipants);
+router.get('/posts/:id/participants', authenticate, ActivityController.listParticipants);
 router.post('/posts/:id/join', authenticate, ActivityController.joinPost);
 router.post('/posts/:id/leave', authenticate, ActivityController.leavePost);
 
