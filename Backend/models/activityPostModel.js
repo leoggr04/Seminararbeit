@@ -25,6 +25,13 @@ async function getActivityPostsByUserOrJoined(userId) {
              WHERE ap.user_id = $1 OR p.user_id = $1
              ORDER BY ap.created_at DESC`;
   const res = await db.query(q, [userId]);
+  for(const row of res.rows) {
+    if(row.user_id === userId) {
+      row.is_owner = true;
+    } else {
+      row.is_owner = false;
+    }
+  }
   return res.rows;
 }
 
