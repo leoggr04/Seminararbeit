@@ -30,7 +30,7 @@ async function updatePost(postId, userId, fields) {
 }
 
 async function deletePost(postId, userId) {
-  const post = await ActivityPost.getActivityPostById(postId);
+  const post = await ActivityPost.getActivityPostById(postId)
   if (!post) throw new Error('not_found');
   if (post.user_id !== userId) throw new Error('forbidden');
   return ActivityPost.deleteActivityPost(postId);
