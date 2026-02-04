@@ -23,6 +23,7 @@ api.interceptors.request.use(async (config) => {
     const token = await getAuthToken();
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
+        console.log("Das ist der token "+token);
     }
     return config;
 });
@@ -164,6 +165,11 @@ export const getAlLParticipantsOfPost = async (postId: number) => {
 export const joinActivity = async (postId:number)=>{
     const res = await api.post(`/activities/posts/${postId}/join`);
     return res.data;
+}
+
+export const getAllSelfActivities = async() =>{
+    const res = await api.get("/activities/self");
+    return res.data.data;
 }
 
 //=========================================================================

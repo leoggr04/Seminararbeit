@@ -15,7 +15,8 @@ import {
     deleteActivity,
     getActivityTypes,
     updateActivity,
-    getAlLParticipantsOfPost
+    getAlLParticipantsOfPos,
+    getAllSelfActivities
 } from "@/services/api";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
@@ -169,23 +170,23 @@ const Feed: React.FC = () => {
         setError(null);
         try {
             setLoading(true);
-            const userId = await SecureStore.getItemAsync("userId");
-            if (!userId) {
-                setError("Kein Benutzer gefunden. Bitte einloggen.");
-                setActivities([]);
-                return;
-            }
 
-            const data = await getUserActivities(userId);
+            const data = await getAllSelfActivities();
             setActivities(Array.isArray(data) ? data : []);
+
         } catch (err: any) {
             console.error("Fehler beim Laden der Aktivitäten:", err);
-            setError(err?.response?.data?.message || err?.message || "Ladefehler");
+            setError(
+                err?.response?.data?.message ||
+                err?.message ||
+                "Ladefehler"
+            );
             setActivities([]);
         } finally {
             setLoading(false);
         }
     }, []);
+
 
     useFocusEffect(
         React.useCallback(() => {
