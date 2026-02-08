@@ -9,7 +9,7 @@ const options = {
       description: 'API documentation for the Seminararbeit backend'
     },
     servers: [
-      { url: 'http://localhost:3002', description: 'Local server' }
+      { url: 'http://localhost:9000', description: 'Local server' }
     ],
     components: {
       securitySchemes: {
