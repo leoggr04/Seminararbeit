@@ -85,6 +85,15 @@ export default function ChatScreen() {
         }
     };
 
+    const getChatTitle = async () => {
+        let participants = await getParticipants();
+        console.log("Teilnehmer im Chat:", participants);
+        if(participants.length !== 2) setCurrentChatName(chatName);
+        else {
+            setCurrentChatName(participants.filter((p: User) => p.id !== currentUserId)[0]?.first_name || chatName);
+        }
+    }
+
     const renderItem = ({ item }: { item: Message }) => {
         const date = new Date(item.sent_at);
         const isMine = item.sender_id === currentUserId;
@@ -117,15 +126,6 @@ export default function ChatScreen() {
         );
     };
 
-    const getChatTitle = async () => {
-        let participants = await getParticipants();
-        console.log("Teilnehmer im Chat:", participants);
-        if(participants.length !== 2) setCurrentChatName(chatName);
-        else {
-            setCurrentChatName(participants.filter((p: User) => p.id !== currentUserId)[0]?.first_name || chatName);
-        }
-    }
-
     const chatHeader = () => {
         return (
             <View style={styles.header}>
@@ -134,6 +134,10 @@ export default function ChatScreen() {
                 </TouchableOpacity>
 
                 <Text style={styles.headerTitle}>{currentChatName}</Text>
+
+                <TouchableOpacity onPress={() => router.navigate(`/chat/${chatId}/info?name=${encodeURIComponent(currentChatName)}`)}>
+                    <Ionicons name="information-circle" size={28} color="black" />
+                </TouchableOpacity>
             </View>
         );
     }
@@ -222,6 +226,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         paddingHorizontal: 15,
         paddingVertical: 25,
         backgroundColor: "#f8f9fa",
