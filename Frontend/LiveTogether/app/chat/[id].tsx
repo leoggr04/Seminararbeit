@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import {Stack, useLocalSearchParams} from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { listChatMessages, sendMessage } from "@/services/api";
+import { listChatMessages, sendMessage, getChatParticipants, getUserById } from "@/services/api";
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {useRouter} from "expo-router";
 
@@ -26,14 +26,22 @@ interface Message {
     sent_at: string;
 }
 
+interface User {
+    id: number;
+    name: string;
+    email?: string;
+}
+
 export default function ChatScreen() {
-    const { id } = useLocalSearchParams();
+    const { id, name } = useLocalSearchParams();
     const chatId = Number(id);
+    const chatName = typeof name === "string" ? name : "Chat";
     const router = useRouter();
     const [messages, setMessages] = useState<Message[]>([]);
     const [loading, setLoading] = useState(true);
     const [input, setInput] = useState("");
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [currentChatName , setCurrentChatName] = useState(chatName);
 
     useEffect(() => {
         const loadUserId = async () => {
@@ -41,6 +49,7 @@ export default function ChatScreen() {
             if (storedId) setCurrentUserId(Number(storedId));
         };
         loadUserId();
+        getChatTitle();
     }, []);
 
     useEffect(() => {
@@ -59,6 +68,11 @@ export default function ChatScreen() {
         fetchMessages();
     }, [chatId]);
 
+    const getParticipants = () => {
+        return getChatParticipants(chatId).then((res) => {
+            return res;
+        }).catch(() => "Teilnehmer");
+    }
 
     const handleSend = async () => {
         if (!input.trim() || currentUserId === null) return;
@@ -103,17 +117,32 @@ export default function ChatScreen() {
         );
     };
 
+    const getChatTitle = async () => {
+        let participants = await getParticipants();
+        console.log("Teilnehmer im Chat:", participants);
+        if(participants.length !== 2) setCurrentChatName(chatName);
+        else {
+            setCurrentChatName(participants.filter((p: User) => p.id !== currentUserId)[0]?.first_name || chatName);
+        }
+    }
+
+    const chatHeader = () => {
+        return (
+            <View style={styles.header}>
+                <TouchableOpacity onPress={() => router.back()}>
+                    <Ionicons name="arrow-back" size={28} color="black" />
+                </TouchableOpacity>
+
+                <Text style={styles.headerTitle}>{currentChatName}</Text>
+            </View>
+        );
+    }
+
     return (
         <>
         <Stack.Screen options={{ headerShown: false }} />
     <SafeAreaView style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
-        <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
-                <Ionicons name="arrow-back" size={28} color="black" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>Chat {chatId}</Text>
-        </View>
+        {chatHeader()}
 
         <KeyboardAvoidingView
                 style={styles.container}
