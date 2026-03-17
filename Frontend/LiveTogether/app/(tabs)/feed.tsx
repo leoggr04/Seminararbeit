@@ -1,29 +1,26 @@
-import React, { useEffect, useState, useCallback } from "react";
-import {
-    StyleSheet,
-    Text,
-    View,
-    FlatList,
-    ActivityIndicator,
-    RefreshControl,
-    TouchableOpacity,
-    Alert, TextInput,
-} from "react-native";
-import * as SecureStore from "expo-secure-store";
-import {
-    getUserActivities,
-    deleteActivity,
-    getActivityTypes,
-    updateActivity,
-    getAlLParticipantsOfPos,
-    getAllSelfActivities
-} from "@/services/api";
-import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
-import * as Location from "expo-location";
+import DeleteActivityModal from "@/components/DeleteActivityModal";
 import ParticipantsModal from "@/components/ParticipantsModal";
 import UpdateActivityModal from "@/components/UpdateActivityModal";
-import DeleteActivityModal from "@/components/DeleteActivityModal";
+import {
+    deleteActivity,
+    getActivityTypes,
+    getAllSelfActivities,
+    updateActivity
+} from "@/services/api";
+import { useFocusEffect } from "@react-navigation/native";
+import * as Location from "expo-location";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from "react-native";
 
 type Activity = {
     post_id: number;
@@ -47,12 +44,36 @@ const Feed: React.FC = () => {
     const router = useRouter();
     const now = new Date();
     const [activityTypes, setActivityTypes] = useState<{ [id: number]: { name: string; icon_url: string | null } }>({});
-    //Modal Variables
+    // Modal Variables
     const [editVisible, setEditVisible] = useState(false);
-    const [editText, setEditText] = useState("");
     const [editPostId, setEditPostId] = useState<number | null>(null);
-    const [originalText, setOriginalText] = useState("");
-    const hasChanged = editText.trim() !== originalText.trim();
+
+    const [editDescription, setEditDescription] = useState("");
+    const [editActivityTypeId, setEditActivityTypeId] = useState<number | null>(null);
+    const [editStartDate, setEditStartDate] = useState<Date>(new Date());
+    const [editEndDate, setEditEndDate] = useState<Date>(new Date());
+    const [editLatitude, setEditLatitude] = useState<string>("");
+    const [editLongitude, setEditLongitude] = useState<string>("");
+
+    const [originalEditValues, setOriginalEditValues] = useState<{
+        activity_type_id: number;
+        description: string;
+        start_time: string;
+        end_time: string;
+        latitude: number;
+        longitude: number;
+    } | null>(null);
+
+    const hasChanged = Boolean(
+        originalEditValues &&
+        (editDescription.trim() !== originalEditValues.description.trim() ||
+            editActivityTypeId !== originalEditValues.activity_type_id ||
+            editStartDate.toISOString() !== originalEditValues.start_time ||
+            editEndDate.toISOString() !== originalEditValues.end_time ||
+            Number(editLatitude) !== originalEditValues.latitude ||
+            Number(editLongitude) !== originalEditValues.longitude)
+    );
+
     // State für Teilnehmer-Modal
     const [participantsModalVisible, setParticipantsModalVisible] = useState(false);
     const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
@@ -82,8 +103,20 @@ const Feed: React.FC = () => {
 
     const openEditModal = (activity: Activity) => {
         setEditPostId(activity.post_id);
-        setEditText(activity.description || "");
-        setOriginalText(activity.description || "");
+        setEditDescription(activity.description || "");
+        setEditActivityTypeId(activity.activity_type_id);
+        setEditStartDate(new Date(activity.start_time));
+        setEditEndDate(new Date(activity.end_time));
+        setEditLatitude(String(activity.latitude));
+        setEditLongitude(String(activity.longitude));
+        setOriginalEditValues({
+            activity_type_id: activity.activity_type_id,
+            description: activity.description || "",
+            start_time: activity.start_time,
+            end_time: activity.end_time,
+            latitude: activity.latitude,
+            longitude: activity.longitude,
+        });
         setEditVisible(true);
     };
 
@@ -117,7 +150,21 @@ const Feed: React.FC = () => {
         if (editPostId == null || !hasChanged) return;
 
         try {
-            await updateActivity(editPostId, { description: editText }); // 5 Sekunden
+            const payload: any = {
+                description: editDescription,
+                start_time: editStartDate.toISOString(),
+                end_time: editEndDate.toISOString(),
+                latitude: Number(editLatitude),
+                longitude: Number(editLongitude),
+            };
+
+            if (editActivityTypeId != null) {
+                payload.activity_type_id = editActivityTypeId;
+            }
+            if (Number.isNaN(payload.latitude)) delete payload.latitude;
+            if (Number.isNaN(payload.longitude)) delete payload.longitude;
+
+            await updateActivity(editPostId, payload);
             showToast("Aktivität erfolgreich aktualisiert! 🎉", "success");
         } catch (err) {
             console.error("Fehler beim Bearbeiten:", err);
@@ -143,9 +190,10 @@ const Feed: React.FC = () => {
     const activeActivities = activities.filter(a => new Date(a.end_time) > now);
     const pastActivities = activities.filter(a => new Date(a.end_time) <= now);
 
-    const displayActivities: (Activity | { type: "divider" })[] = [
+    const dividerItem = { type: "divider" } as const;
+    const displayActivities: (Activity | typeof dividerItem)[] = [
         ...activeActivities,
-        ...(pastActivities.length > 0 ? [{ type: "divider" }] : []),
+        ...(pastActivities.length > 0 ? [dividerItem] : []),
         ...pastActivities,
     ];
 
@@ -248,8 +296,12 @@ const Feed: React.FC = () => {
         }
     }, [fetchActivities]);
 
+    const isDividerItem = (item: Activity | { type: "divider" }): item is { type: "divider" } => {
+        return (item as any).type === "divider";
+    };
+
     const renderItem = ({ item }: { item: Activity | { type: "divider" } }) => {
-        if ("type" in item && item.type === "divider") {
+        if (isDividerItem(item)) {
             return (
                 <View style={styles.divider}>
                     <Text style={styles.dividerText}>Vergangene Aktivitäten</Text>
@@ -257,8 +309,9 @@ const Feed: React.FC = () => {
             );
         }
 
-        const isPast = new Date(item.end_time) <= now;
-        const statusText = isPast ? "Abgeschlossen" : capitalize(item.status);
+        const activity = item;
+        const isPast = new Date(activity.end_time) <= now;
+        const statusText = isPast ? "Abgeschlossen" : capitalize(activity.status);
         const statusColor = isPast ? "#28a745" : "#007bff";
 
 
@@ -276,16 +329,16 @@ const Feed: React.FC = () => {
                     {/* Alles, was ausgegraut werden soll */}
                     <View style={styles.row}>
                         <Text style={styles.title}>
-                            {isEmoji(activityTypes[item.activity_type_id]?.icon_url)
-                                ? `${activityTypes[item.activity_type_id]?.icon_url} `
+                            {isEmoji(activityTypes[activity.activity_type_id]?.icon_url)
+                                ? `${activityTypes[activity.activity_type_id]?.icon_url} `
                                 : "📍"}
-                            {activityTypes[item.activity_type_id]?.name} am {formatDateShort(item.start_time)}
+                            {activityTypes[activity.activity_type_id]?.name} am {formatDateShort(activity.start_time)}
                         </Text>
 
                         <Text style={[styles.status, { color: statusColor }]}>{statusText}</Text>
                     </View>
                     <Text style={styles.description}>
-                        {item.description?.length ? item.description : "Keine Beschreibung"}
+                        {activity.description?.length ? activity.description : "Keine Beschreibung"}
                     </Text>
                     <View style={styles.metaRow}>
                         <Text style={styles.metaText}>Start: {formatDateTime(item.start_time)}</Text>
@@ -362,8 +415,18 @@ const Feed: React.FC = () => {
                     </Text>
                 </View>
             ) : activities.length === 0 ? (
-                <View style={styles.center}>
-                    <Text>Keine Aktivitäten gefunden.</Text>
+                <View style={[styles.center, styles.emptyContainer]}>
+                    <Text style={styles.emptyEmoji}>📭</Text>
+                    <Text style={styles.emptyTitle}>Keine Aktivitäten gefunden</Text>
+                    <Text style={styles.emptySubtitle}>
+                        Du hast noch keine eigenen Aktivitäten erstellt. Gehe zur Karte, um Aktivitäten zu erstellen oder beizutreten.
+                    </Text>
+                    <TouchableOpacity
+                        style={styles.emptyButton}
+                        onPress={() => router.push("/map")}
+                    >
+                        <Text style={styles.emptyButtonText}>Zur Karte</Text>
+                    </TouchableOpacity>
                 </View>
             ) : (
                 <FlatList
@@ -389,8 +452,25 @@ const Feed: React.FC = () => {
 
             <UpdateActivityModal
                 visible={editVisible}
-                text={editText}
-                onChangeText={setEditText}
+                activityTypes={Object.entries(activityTypes).map(([id, info]) => ({
+                    id: Number(id),
+                    name: info.name,
+                    icon_url: info.icon_url ?? undefined,
+                }))}
+                selectedActivityTypeId={editActivityTypeId}
+                onSelectActivityType={setEditActivityTypeId}
+                description={editDescription}
+                onChangeDescription={setEditDescription}
+                startDate={editStartDate}
+                endDate={editEndDate}
+                onChangeDateRange={(start, end) => {
+                    setEditStartDate(start);
+                    setEditEndDate(end);
+                }}
+                latitude={editLatitude}
+                longitude={editLongitude}
+                onChangeLatitude={setEditLatitude}
+                onChangeLongitude={setEditLongitude}
                 onClose={() => setEditVisible(false)}
                 onSave={saveEdit}
                 hasChanged={hasChanged}
@@ -470,6 +550,21 @@ const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: "#f8f9fa", paddingTop: 80, paddingHorizontal: 20 },
     header: { fontSize: 28, fontWeight: "700", marginBottom: 20, textAlign: "center" },
     center: { alignItems: "center", justifyContent: "center" },
+    emptyContainer: { paddingHorizontal: 20, paddingTop: 60 },
+    emptyEmoji: { fontSize: 60, marginBottom: 16 },
+    emptyTitle: { fontSize: 20, fontWeight: "700", marginBottom: 8, textAlign: "center" },
+    emptySubtitle: { fontSize: 15, color: "#555", textAlign: "center", marginBottom: 16, lineHeight: 22 },
+    emptyButton: {
+        backgroundColor: "#007bff",
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 999,
+    },
+    emptyButtonText: {
+        color: "white",
+        fontWeight: "700",
+        fontSize: 16,
+    },
     card: {
         backgroundColor: "#fff",
         padding: 14,

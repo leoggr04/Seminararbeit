@@ -1,11 +1,10 @@
-import React, {useEffect, useState} from "react";
-import {View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator} from "react-native";
-import {useNavigation, useRouter} from "expo-router";
+import { useUser } from "@/components/UserContext";
+import { getUserById, loginUser, refreshAccessToken } from "@/services/api"; // 👈 importiere deinen Service
 import Icon from "@expo/vector-icons/Ionicons";
-import {getUserById, loginUser, refreshAccessToken} from "@/services/api"; // 👈 importiere deinen Service
-import {useUser} from "@/components/UserContext";
+import { useNavigation, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import {User} from "@/types/types";
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function LoginScreen() {
     const [email, setEmail] = useState("");
@@ -24,6 +23,11 @@ export default function LoginScreen() {
                 const refreshTokenLokal = await SecureStore.getItemAsync("refreshToken");
                 const userId = await SecureStore.getItemAsync("userId");
                 // Wenn Token existieren, ggf. Userdaten abrufen und einloggen
+                if (devmode) {
+
+                    router.replace("/(tabs)/feed");
+                }
+
                 if (accessToken && refreshTokenLokal && userId && !devmode) {
                     // Beispiel: User-Daten von API holen (optional)
                     // const response = await getUserById(userId, accessToken);

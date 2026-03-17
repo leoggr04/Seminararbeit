@@ -1,6 +1,5 @@
 import axios from "axios";
 import * as SecureStore from "expo-secure-store";
-import {array} from "yup";
 
 const API_BASE_URL = "https://217.154.6.104:9000/api";
 
@@ -153,7 +152,18 @@ export const deleteActivity = async (postId: number) => {
     return res.data;
 };
 
-export const updateActivity = async (postId: number, data: { description?: string; status?: string }) => {
+export const updateActivity = async (
+    postId: number,
+    data: {
+        activity_type_id?: number;
+        description?: string;
+        start_time?: string;
+        end_time?: string;
+        latitude?: number;
+        longitude?: number;
+        status?: string;
+    }
+) => {
     const res = await api.put(`/activities/posts/${postId}`, data);
     return res.data;
 };

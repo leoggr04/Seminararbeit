@@ -1,25 +1,25 @@
-import React, { useState, useEffect } from "react";
+import DateTimePicker from "@/components/DateTimePicker";
+import MarkerWithEmoji from "@/components/MarkerWithEmoji";
+import SearchBar from "@/components/SearchBar";
+import { createActivity, deleteActivity, getActivityTypes, getAllActivities, joinActivity } from "@/services/api";
+import { MarkerType } from "@/services/appwrite";
+import { AntDesign } from "@expo/vector-icons";
+import { Picker } from "@react-native-picker/picker";
+import { useFocusEffect } from "@react-navigation/native";
+import * as Location from "expo-location";
+import * as SecureStore from "expo-secure-store";
+import React, { useEffect, useState } from "react";
 import {
-    View,
-    StyleSheet,
     Alert,
+    Keyboard,
     Modal,
+    StyleSheet,
     Text,
     TextInput,
-    TouchableOpacity, Keyboard, Image,
+    TouchableOpacity,
+    View
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import SearchBar from "@/components/SearchBar";
-import { createMarker, getMarkers, MarkerType } from "@/services/appwrite";
-import MarkerWithEmoji from "@/components/MarkerWithEmoji";
-import DateTimePicker from "@/components/DateTimePicker";
-import {createActivity, deleteActivity, getActivityTypes, getAllActivities, getUserActivities, joinActivity} from "@/services/api";
-import * as SecureStore from "expo-secure-store";
-import {Picker} from "@react-native-picker/picker";
-import {awaitExpression} from "@babel/types";
-import {useFocusEffect} from "@react-navigation/native";
-import * as Location from "expo-location"
-import {AntDesign} from "@expo/vector-icons";
+import MapView, { UrlTile } from "react-native-maps";
 
 
 const initialRegion = {
@@ -374,7 +374,6 @@ const Map = () => {
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
-                provider={PROVIDER_GOOGLE}
                 initialRegion={initialRegion}
                 showsUserLocation
                 showsMyLocationButton={false}
@@ -391,6 +390,12 @@ const Map = () => {
                     handleMapPress(e);
                 }}
             >
+                {/* OpenStreetMap tiles via UrlTile — preserves all Marker behavior */}
+                <UrlTile
+                    urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maximumZ={19}
+                    zIndex={-1}
+                />
                 {filteredMarkers.map((marker) => (
                     <MarkerWithEmoji
                         // stable key -> not changing due to filtering
