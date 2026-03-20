@@ -24,6 +24,9 @@ api.interceptors.request.use(async (config) => {
         config.headers.Authorization = `Bearer ${token}`;
         console.log("Das ist der token "+token);
     }
+    const method = (config.method || "GET").toUpperCase();
+    const url = `${config.baseURL || ""}${config.url || ""}`;
+    console.log(`[API] ${method} ${url}`, config.data ?? null);
     return config;
 });
 
@@ -40,9 +43,22 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 api.interceptors.response.use(
-    (response) => response,
+    (response) => {
+        const method = (response.config.method || "GET").toUpperCase();
+        const url = `${response.config.baseURL || ""}${response.config.url || ""}`;
+        console.log(`[API] ${response.status} ${method} ${url}`, response.data ?? null);
+        return response;
+    },
     async (error) => {
         const originalRequest = error.config;
+
+        if (error.response) {
+            const method = (error.config?.method || "GET").toUpperCase();
+            const url = `${error.config?.baseURL || ""}${error.config?.url || ""}`;
+            console.log(`[API] ${error.response.status} ${method} ${url}`, error.response.data ?? null);
+        } else {
+            console.log("[API] Network/Request error", error.message);
+        }
 
         if (error.response?.status === 401 && !originalRequest._retry) {
             if (isRefreshing) {
@@ -185,8 +201,8 @@ export const getAllSelfActivities = async() =>{
 //=========================================================================
 //  chat
 //=========================================================================
-export const createNewChat = async (participantIds:number[])=>{
-    const res = await api.post("/chats", {participantIds});
+export const createNewChat = async (chat_name: string, participantIds: number[])=>{
+    const res = await api.post("/chats", { chat_name, participantIds });
     return res.data;
 }
 
@@ -217,5 +233,10 @@ export const sendMessage = async (chatId:number,content:string) => {
 
 export const listChatMessages = async(chatId:number) =>{
     const res = await api.get(`/chats/${chatId}/messages`);
+    return res.data.data;
+}
+
+export const getChatParticipants = async (chatId: number) => {
+    const res = await api.get(`/chats/${chatId}/participants`);
     return res.data.data;
 }

@@ -126,6 +126,8 @@ export default function Signup() {
                 password.trim()
             );
 
+            console.log("Registrierungsantwort:", registerResponse.data);
+
             const { user: registeredUser } = registerResponse.data;
 
             const loginResponse = await loginUser(email.trim(), password.trim());
