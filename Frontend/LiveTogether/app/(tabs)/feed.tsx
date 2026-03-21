@@ -5,11 +5,13 @@ import {
     deleteActivity,
     getActivityTypes,
     getAllSelfActivities,
+    leaveActivity,
     updateActivity
 } from "@/services/api";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -84,6 +86,17 @@ const Feed: React.FC = () => {
 
     const [deleteModalVisible, setDeleteModalVisible] = useState(false);
     const [deletePostId, setDeletePostId] = useState<number | null>(null);
+    const [leaveModalVisible, setLeaveModalVisible] = useState(false);
+    const [leavePostId, setLeavePostId] = useState<number | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+    useEffect(() => {
+        const loadUserId = async () => {
+            const storedId = await SecureStore.getItemAsync("userId");
+            if (storedId) setCurrentUserId(Number(storedId));
+        };
+        loadUserId();
+    }, []);
 
     useEffect(() => {
         const requestLocationPermission = async () => {
@@ -131,6 +144,14 @@ const Feed: React.FC = () => {
 
     const handleConfirmDelete = async () => {
         if (deletePostId == null) return;
+
+        const activityToDelete = activities.find(a => a.post_id === deletePostId);
+        if (activityToDelete && currentUserId != null && activityToDelete.user_id !== currentUserId) {
+            showToast("Nur Ersteller dürfen löschen", "error");
+            setDeleteModalVisible(false);
+            setDeletePostId(null);
+            return;
+        }
 
         try {
             await deleteActivity(deletePostId);
@@ -181,6 +202,27 @@ const Feed: React.FC = () => {
     const handleParticipants = (activity: Activity) => {
         setSelectedPostId(activity.post_id);
         setParticipantsModalVisible(true);
+    };
+
+    const handleLeavePress = (postId: number) => {
+        setLeavePostId(postId);
+        setLeaveModalVisible(true);
+    };
+
+    const handleConfirmLeave = async () => {
+        if (leavePostId == null) return;
+
+        try {
+            await leaveActivity(leavePostId);
+            showToast("Aktivität verlassen", "success");
+            fetchActivities();
+        } catch (err) {
+            console.error("Fehler beim Verlassen:", err);
+            showToast("Verlassen fehlgeschlagen", "error");
+        } finally {
+            setLeaveModalVisible(false);
+            setLeavePostId(null);
+        }
     };
 
 
@@ -313,6 +355,7 @@ const Feed: React.FC = () => {
         const isPast = new Date(activity.end_time) <= now;
         const statusText = isPast ? "Abgeschlossen" : capitalize(activity.status);
         const statusColor = isPast ? "#28a745" : "#007bff";
+        const isOwner = currentUserId != null && activity.user_id === currentUserId;
 
 
         const handleDeletePress = (postId: number) => {
@@ -356,8 +399,14 @@ const Feed: React.FC = () => {
                     { !isPast ? (
                         <>
                             <TouchableOpacity
-                                style={styles.editButton}
-                                onPress={() => openEditModal(item)}
+                                style={[
+                                    styles.editButton,
+                                    !isOwner && styles.editButtonDisabled,
+                                ]}
+                                onPress={() => {
+                                    if (isOwner) openEditModal(item);
+                                }}
+                                disabled={!isOwner}
                             >
                                 <Text style={styles.buttonText}>Bearbeiten</Text>
                             </TouchableOpacity>
@@ -379,12 +428,21 @@ const Feed: React.FC = () => {
                     )}
 
 
-                    <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => handleDeletePress(item.post_id)}
-                    >
-                        <Text style={styles.buttonText}>Löschen</Text>
-                    </TouchableOpacity>
+                    {isOwner ? (
+                        <TouchableOpacity
+                            style={styles.deleteButton}
+                            onPress={() => handleDeletePress(item.post_id)}
+                        >
+                            <Text style={styles.buttonText}>Löschen</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <TouchableOpacity
+                            style={styles.deleteButton}
+                            onPress={() => handleLeavePress(item.post_id)}
+                        >
+                            <Text style={styles.buttonText}>Verlassen</Text>
+                        </TouchableOpacity>
+                    )}
 
                 </View>
 
@@ -447,6 +505,18 @@ const Feed: React.FC = () => {
                 visible={deleteModalVisible}
                 onClose={() => setDeleteModalVisible(false)}
                 onConfirm={handleConfirmDelete}
+            />
+
+            <DeleteActivityModal
+                visible={leaveModalVisible}
+                onClose={() => {
+                    setLeaveModalVisible(false);
+                    setLeavePostId(null);
+                }}
+                onConfirm={handleConfirmLeave}
+                title="Aktivität verlassen"
+                message="Bist du sicher, dass du diese Aktivität verlassen möchtest?"
+                confirmText="Ja, verlassen"
             />
 
 
@@ -679,6 +749,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 6,
+    },
+    editButtonDisabled: {
+        backgroundColor: "#9ca3af",
     },
     buttonText: {
         color: "white",

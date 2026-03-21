@@ -192,6 +192,10 @@ export const joinActivity = async (postId:number)=>{
     const res = await api.post(`/activities/posts/${postId}/join`);
     return res.data;
 }
+export const leaveActivity = async (postId:number)=>{
+    const res = await api.post(`/activities/posts/${postId}/leave`);
+    return res.data;
+}
 
 export const getAllSelfActivities = async() =>{
     const res = await api.get("/activities/self");

@@ -1,12 +1,20 @@
 import DateTimePicker from "@/components/DateTimePicker";
 import MarkerWithEmoji from "@/components/MarkerWithEmoji";
 import SearchBar from "@/components/SearchBar";
-import { createActivity, deleteActivity, getActivityTypes, getAllActivities, joinActivity } from "@/services/api";
-import { MarkerType } from "@/services/appwrite";
+import {
+    createActivity,
+    deleteActivity,
+    getActivityTypes,
+    getAllActivities,
+    getAlLParticipantsOfPost,
+    joinActivity,
+    leaveActivity
+} from "@/services/api";
 import { AntDesign } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
+import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
@@ -29,19 +37,54 @@ const initialRegion = {
     longitudeDelta: 0.1,
 };
 
+type ActivityTypeOption = {
+    id: number;
+    name: string;
+    icon_url?: string;
+    emoji?: string;
+};
+
+type ApiActivity = {
+    post_id: number;
+    activity_type_id: number;
+    description: string;
+    start_time: string;
+    end_time: string;
+    latitude: number;
+    longitude: number;
+    status: string;
+    user_id: number;
+};
+
+type ActivityMarker = {
+    post_id: number;
+    latitude: number;
+    longitude: number;
+    user_id: number;
+    activityTypeName: string;
+    title: string;
+    description: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    emoji: string;
+};
+
 const Map = () => {
-    const [markers, setMarkers] = useState<MarkerType[]>([]);
+    const router = useRouter();
+    const [markers, setMarkers] = useState<ActivityMarker[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [newMarkerCoords, setNewMarkerCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [emoji, setEmoji] = useState<string>("🌲");
-    const [activityTypes, setActivityTypes] = useState<{id: number, name: string, icon_url?: string}[]>([]);
-    const [selectedActivityType, setSelectedActivityType] = useState<{id: number, name: string, icon_url?: string} | null>(null);
+    const [activityTypes, setActivityTypes] = useState<ActivityTypeOption[]>([]);
+    const [selectedActivityType, setSelectedActivityType] = useState<ActivityTypeOption | null>(null);
     const [readOnly, setReadOnly] = useState(false);
     const [activityTypesMap, setActivityTypesMap] = useState<{ [id: number]: string }>({});
     const [userId, setUserId] = useState<number | null>(null);
-    const [selectedMarker, setSelectedMarker] = useState<MarkerType | null>(null);
+    const [selectedMarker, setSelectedMarker] = useState<ActivityMarker | null>(null);
+    const [isSelectedMarkerJoined, setIsSelectedMarkerJoined] = useState(false);
     const now = new Date();
     const mapRef = React.useRef<MapView>(null);
 
@@ -91,7 +134,7 @@ const Map = () => {
                 // Activity Types laden
                 const types = await getActivityTypes();
                 const map: { [id: number]: string } = {};
-                const mappedTypes = types.map(t => {
+                const mappedTypes: ActivityTypeOption[] = types.map((t: any) => {
                     map[t.activity_type_id] = t.name;
                     return {
                         id: t.activity_type_id,
@@ -108,11 +151,11 @@ const Map = () => {
                 }
 
                 // Activities (Marker) laden
-                const activities = await getAllActivities();
+                const activities = await getAllActivities() as ApiActivity[];
                 const formattedMarkers = activities
-                    .filter(a => a.latitude != null && a.longitude != null)
-                    .filter(a => new Date(a.end_time) > now)
-                    .map(a => {
+                    .filter((a) => a.latitude != null && a.longitude != null)
+                    .filter((a) => new Date(a.end_time) > now)
+                    .map((a) => {
                         const type = activityTypes.find(t => t.id === a.activity_type_id);
                         return {
                             post_id: a.post_id,
@@ -189,11 +232,11 @@ const Map = () => {
         React.useCallback(() => {
             const loadMarkers = async () => {
                 try {
-                    const activities = await getAllActivities();
+                    const activities = await getAllActivities() as ApiActivity[];
                     const formattedMarkers = activities
-                        .filter(a => a.latitude != null && a.longitude != null)
-                        .filter(a => new Date(a.end_time) > now)
-                        .map(a => {
+                        .filter((a) => a.latitude != null && a.longitude != null)
+                        .filter((a) => new Date(a.end_time) > now)
+                        .map((a) => {
                             const type = activityTypes.find(t => t.id === a.activity_type_id);
                             return {
                                 post_id: a.post_id,
@@ -271,7 +314,7 @@ const Map = () => {
                     start_time: savedActivity.start_time,
                     end_time: savedActivity.end_time,
                     status: savedActivity.status,
-                    user_id: userId,
+                    user_id: userId ?? 0,
                     emoji: selectedActivityType.emoji || "📍",
 
                 },
@@ -297,7 +340,7 @@ const Map = () => {
     };
 
 
-    const handleMarkerPress = (marker: MarkerType) => {
+    const handleMarkerPress = async (marker: ActivityMarker) => {
         setSelectedMarker(marker); // <--- speichere den aktuellen Marker
         setTitle(marker.activityTypeName);
         setDescription(marker.description ?? "");
@@ -306,17 +349,34 @@ const Map = () => {
         setEndDate(new Date(marker.end_time));
         setModalVisible(true);
         setReadOnly(true);
+
+        if (userId == null || marker.user_id === userId) {
+            setIsSelectedMarkerJoined(false);
+            return;
+        }
+
+        try {
+            const participants = await getAlLParticipantsOfPost(marker.post_id);
+            const joined = Array.isArray(participants)
+                ? participants.some((p: any) => Number(p?.user_id ?? p?.id) === userId)
+                : false;
+            setIsSelectedMarkerJoined(joined);
+        } catch (err) {
+            console.error("Fehler beim Laden der Teilnehmer:", err);
+            setIsSelectedMarkerJoined(false);
+        }
     };
 
 
     const handleJoinActivity = async () => {
-        if (!selectedMarker) return;
+        if (!selectedMarker?.post_id) return;
 
         try {
             console.log(selectedMarker.post_id);
-            const response = await joinActivity(selectedMarker.post_id);
+            await joinActivity(selectedMarker.post_id);
 
             Alert.alert("Beigetreten ✅", "Du nimmst jetzt an dieser Aktivität teil!");
+            setIsSelectedMarkerJoined(true);
             setModalVisible(false);
 
             // OPTIONAL: Marker aktualisieren
@@ -325,6 +385,20 @@ const Map = () => {
         } catch (err) {
             console.error(err);
             Alert.alert("Fehler", "Beitreten fehlgeschlagen.");
+        }
+    };
+
+    const handleLeaveActivity = async () => {
+        if (!selectedMarker?.post_id) return;
+
+        try {
+            await leaveActivity(selectedMarker.post_id);
+            Alert.alert("Verlassen ✅", "Du hast die Aktivität verlassen.");
+            setIsSelectedMarkerJoined(false);
+            setModalVisible(false);
+        } catch (err) {
+            console.error(err);
+            Alert.alert("Fehler", "Verlassen fehlgeschlagen.");
         }
     };
 
@@ -349,7 +423,7 @@ const Map = () => {
 
     // 🔍 Filtert Marker nach Suchbegriff (beschreibung)
     const filteredMarkers = markers.filter(marker =>
-        marker.description.toLowerCase().includes(searchQuery.toLowerCase())
+        (marker.description || "").toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (
@@ -459,28 +533,54 @@ const Map = () => {
                                     {formatDateTime(startDate)} – {formatDateTime(endDate)}
                                 </Text>
 
-                                {/* "Beitreten"-Button */}
-                                <TouchableOpacity
-                                    style={[
-                                        styles.button,
-                                        {
-                                            backgroundColor:
-                                                selectedMarker?.user_id === userId ? "#007bff" : "#28A745",
-                                            marginTop: 16,
-                                        },
-                                    ]}
-                                    onPress={() => {
-                                        if (selectedMarker?.user_id === userId) {
-                                            // später: bearbeiten
-                                        } else {
-                                            handleJoinActivity();  // <---- Wichtig!!
-                                        }
-                                    }}
-                                >
-                                    <Text style={{ color: "white", fontWeight: "bold" }}>
-                                        {selectedMarker?.user_id === userId ? "Bearbeiten" : "Beitreten"}
-                                    </Text>
-                                </TouchableOpacity>
+                                {selectedMarker?.user_id === userId ? (
+                                    <>
+                                        <View style={styles.ownerHintBox}>
+                                            <Text style={styles.ownerHintTitle}>Eigene Aktivität</Text>
+                                            <Text style={styles.ownerHint}>
+                                                Wechsele zum Bearbeiten oder Löschen deiner Aktivität in den Feed. Dort kannst du auch bequem die Teilnehmer verwalten!
+                                            </Text>
+                                        </View>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.button,
+                                                {
+                                                    backgroundColor: "#007bff",
+                                                    marginTop: 16,
+                                                },
+                                            ]}
+                                            onPress={() => {
+                                                setModalVisible(false);
+                                                router.push("/(tabs)/feed");
+                                            }}
+                                        >
+                                            <Text style={{ color: "white", fontWeight: "bold" }}>
+                                                Zum Feed
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </>
+                                ) : (
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.button,
+                                            {
+                                                backgroundColor: isSelectedMarkerJoined ? "red" : "#28A745",
+                                                marginTop: 16,
+                                            },
+                                        ]}
+                                        onPress={() => {
+                                            if (isSelectedMarkerJoined) {
+                                                handleLeaveActivity();
+                                            } else {
+                                                handleJoinActivity();
+                                            }
+                                        }}
+                                    >
+                                        <Text style={{ color: "white", fontWeight: "bold" }}>
+                                            {isSelectedMarkerJoined ? "Verlassen" : "Beitreten"}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
 
 
                             </View>
@@ -574,6 +674,26 @@ const styles = StyleSheet.create({
         padding: 12,
         borderRadius: 8,
         alignItems: "center",
+    },
+    ownerHintBox: {
+        marginTop: 14,
+        backgroundColor: "#eef5ff",
+        borderColor: "#cfe2ff",
+        borderWidth: 1,
+        borderRadius: 10,
+        padding: 12,
+    },
+    ownerHintTitle: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#1d4ed8",
+        marginBottom: 4,
+        textAlign: "center",
+    },
+    ownerHint: {
+        fontSize: 14,
+        color: "#334155",
+        lineHeight: 20,
     },
     emojiButton: {
         padding: 6,

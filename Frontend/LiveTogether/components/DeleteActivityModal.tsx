@@ -7,13 +7,16 @@ Creator: David Pleyer
 Version: v1
 */
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Modal } from "react-native";
+import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
     visible: boolean;
     onClose: () => void;
     onConfirm: () => void;
     activityName?: string;
+    title?: string;
+    message?: string;
+    confirmText?: string;
 };
 
 const DeleteActivityModal: React.FC<Props> = ({
@@ -21,6 +24,9 @@ const DeleteActivityModal: React.FC<Props> = ({
                                                   onClose,
                                                   onConfirm,
                                                   activityName = "diese Aktivität",
+                                                  title = "Aktivität löschen",
+                                                  message,
+                                                  confirmText = "Ja, jetzt löschen",
                                               }) => {
     return (
         <Modal
@@ -31,9 +37,9 @@ const DeleteActivityModal: React.FC<Props> = ({
         >
             <View style={styles.modalOverlay}>
                 <View style={styles.modalBox}>
-                    <Text style={styles.modalTitle}>Aktivität löschen</Text>
+                    <Text style={styles.modalTitle}>{title}</Text>
                     <Text style={styles.modalMessage}>
-                        Willst du wirklich {activityName} löschen?
+                        {message ?? `Willst du wirklich ${activityName} löschen?`}
                     </Text>
 
                     <View style={styles.modalButtons}>
@@ -48,7 +54,7 @@ const DeleteActivityModal: React.FC<Props> = ({
                             style={[styles.modalButton, { backgroundColor: "#dc3545" }]}
                             onPress={onConfirm}
                         >
-                            <Text style={styles.modalButtonText}>Ja, jetzt löschen</Text>
+                            <Text style={styles.modalButtonText}>{confirmText}</Text>
                         </TouchableOpacity>
                     </View>
                 </View>

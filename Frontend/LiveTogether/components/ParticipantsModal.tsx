@@ -6,18 +6,19 @@ Creator: David Pleyer
 Version: v1
 */
 
+import { getAlLParticipantsOfPost } from "@/services/api";
+import * as SecureStore from "expo-secure-store";
+import { Users, UserX, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    TouchableOpacity,
-    Modal,
-    FlatList,
     ActivityIndicator,
+    FlatList,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { getAlLParticipantsOfPost } from "@/services/api";
-import { Users, UserX, X } from "lucide-react-native";
 
 type Participant = {
     post_id: number;
@@ -38,6 +39,16 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
+    useEffect(() => {
+        const loadUserId = async () => {
+            const id = await SecureStore.getItemAsync("userId");
+            if (id) setCurrentUserId(Number(id));
+        };
+
+        loadUserId();
+    }, []);
 
     useEffect(() => {
         if (!visible) return;
@@ -59,12 +70,22 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
         fetchParticipants();
     }, [visible, postId]);
 
-    const renderParticipant = ({ item }: { item: Participant }) => (
-        <View style={styles.participantRow}>
-            <Users size={24} color="#007bff" style={{ marginRight: 12 }} />
-            <Text style={styles.participantName}>{`${item.first_name} ${item.last_name}`}</Text>
-        </View>
-    );
+    const renderParticipant = ({ item }: { item: Participant }) => {
+        const isMe = currentUserId != null && item.user_id === currentUserId;
+        const displayName = `${item.first_name} ${item.last_name}`;
+
+        return (
+            <View style={[styles.participantRow, isMe && styles.participantRowMe]}>
+                <Users size={24} color={isMe ? "#1d4ed8" : "#007bff"} style={{ marginRight: 12 }} />
+                <Text style={[styles.participantName, isMe && styles.participantNameMe]}>{displayName}</Text>
+                {isMe && (
+                    <View style={styles.meBadge}>
+                        <Text style={styles.meBadgeText}>Du</Text>
+                    </View>
+                )}
+            </View>
+        );
+    };
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -146,10 +167,31 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         backgroundColor: "#f2f2f2",
     },
+    participantRowMe: {
+        backgroundColor: "#e8f1ff",
+        borderWidth: 1,
+        borderColor: "#bfdbfe",
+    },
     participantName: {
         fontSize: 16,
         fontWeight: "500",
         color: "#333",
+    },
+    participantNameMe: {
+        color: "#1e3a8a",
+        fontWeight: "700",
+    },
+    meBadge: {
+        marginLeft: "auto",
+        backgroundColor: "#2563eb",
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+    },
+    meBadgeText: {
+        color: "white",
+        fontSize: 12,
+        fontWeight: "700",
     },
     noParticipants: {
         justifyContent: "center",
