@@ -1,10 +1,10 @@
-import React, { useState } from "react";
-import {StyleSheet, Text, View, TouchableOpacity, Image, StatusBar, Alert} from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import { useUser } from "@/components/UserContext";
+import { clearStoredAuth } from "@/services/api";
+import { MaterialIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import {MaterialIcons} from "@expo/vector-icons";
-import * as SecureStore from "expo-secure-store";
+import React, { useState } from "react";
+import { Alert, Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const Profile = () => {
     const { user, logout } = useUser();
@@ -21,9 +21,7 @@ const Profile = () => {
                     text: "Ja",
                     style: "destructive",
                     onPress: async () => {
-                        await SecureStore.deleteItemAsync("authToken");
-                        await SecureStore.deleteItemAsync("refreshToken");
-                        await SecureStore.deleteItemAsync("userId");
+                        await clearStoredAuth();
                         logout();
                         router.replace("/login");
                     },

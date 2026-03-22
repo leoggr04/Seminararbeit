@@ -27,7 +27,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import MapView, { UrlTile } from "react-native-maps";
+import MapView from "react-native-maps";
 
 
 const initialRegion = {
@@ -464,12 +464,6 @@ const Map = () => {
                     handleMapPress(e);
                 }}
             >
-                {/* OpenStreetMap tiles via UrlTile — preserves all Marker behavior */}
-                <UrlTile
-                    urlTemplate="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    maximumZ={19}
-                    zIndex={-1}
-                />
                 {filteredMarkers.map((marker) => (
                     <MarkerWithEmoji
                         // stable key -> not changing due to filtering

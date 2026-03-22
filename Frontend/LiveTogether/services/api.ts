@@ -8,6 +8,14 @@ const api = axios.create({
     headers: { "Content-Type": "application/json" },
 });
 
+const isAuthRoute = (url?: string) => {
+    if (!url) return false;
+
+    return ["/auth/login", "/auth/register", "/auth/refresh", "/auth/logout"].some((route) =>
+        url.includes(route)
+    );
+};
+
 // === Helper-Funktionen ===
 const getAuthToken = async () => SecureStore.getItemAsync("authToken");
 const getRefreshToken = async () => SecureStore.getItemAsync("refreshToken");
@@ -17,10 +25,18 @@ const saveTokens = async (accessToken: string, refreshToken: string) => {
     await SecureStore.setItemAsync("refreshToken", refreshToken);
 };
 
+export const clearStoredAuth = async () => {
+    await SecureStore.deleteItemAsync("authToken");
+    await SecureStore.deleteItemAsync("refreshToken");
+    await SecureStore.deleteItemAsync("userId");
+};
+
 // === REQUEST INTERCEPTOR ===
 api.interceptors.request.use(async (config) => {
     const token = await getAuthToken();
-    if (token) {
+    const shouldAttachToken = !isAuthRoute(config.url);
+
+    if (token && shouldAttachToken) {
         config.headers.Authorization = `Bearer ${token}`;
         console.log("Das ist der token "+token);
     }
@@ -51,6 +67,7 @@ api.interceptors.response.use(
     },
     async (error) => {
         const originalRequest = error.config;
+        const shouldSkipRefresh = isAuthRoute(originalRequest?.url);
 
         if (error.response) {
             const method = (error.config?.method || "GET").toUpperCase();
@@ -60,7 +77,7 @@ api.interceptors.response.use(
             console.log("[API] Network/Request error", error.message);
         }
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !shouldSkipRefresh && !originalRequest._retry) {
             if (isRefreshing) {
                 // Warte auf laufenden Refresh
                 return new Promise((resolve, reject) => {
@@ -95,8 +112,7 @@ api.interceptors.response.use(
             } catch (err) {
                 processQueue(err, null);
                 // Optional: Logout erzwingen, wenn Refresh fehlschlägt
-                await SecureStore.deleteItemAsync("authToken");
-                await SecureStore.deleteItemAsync("refreshToken");
+                await clearStoredAuth();
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;

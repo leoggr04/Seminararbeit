@@ -1,19 +1,29 @@
+import FeedbackModal from "@/components/FeedbackModal";
 import { useUser } from "@/components/UserContext";
-import { getUserById, loginUser, refreshAccessToken } from "@/services/api"; // 👈 importiere deinen Service
+import { clearStoredAuth, getUserById, loginUser } from "@/services/api";
 import Icon from "@expo/vector-icons/Ionicons";
-import { useNavigation, useRouter } from "expo-router";
+import axios from "axios";
+import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function LoginScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const router = useRouter();
-    const navigation = useNavigation();
     const [loading, setLoading] = useState(true);
-    const {login} = useUser();
+    const [feedbackVisible, setFeedbackVisible] = useState(false);
+    const [feedbackTitle, setFeedbackTitle] = useState("Fehler");
+    const [feedbackMessage, setFeedbackMessage] = useState("");
+    const {login, logout} = useUser();
     const devmode = false;
+
+    const showFeedback = (title: string, message: string) => {
+        setFeedbackTitle(title);
+        setFeedbackMessage(message);
+        setFeedbackVisible(true);
+    };
 
     useEffect(() => {
         const checkToken = async () => {
@@ -29,26 +39,7 @@ export default function LoginScreen() {
                 }
 
                 if (accessToken && refreshTokenLokal && userId && !devmode) {
-                    // Beispiel: User-Daten von API holen (optional)
-                    // const response = await getUserById(userId, accessToken);
-                    // const user = response.data.user;
-
-                    // Einfachheitshalber Token nutzen, wenn du bereits User im Token hast:
-                    // login(user.name, user.email, user.image, user.id);
-                    console.log("Alter Token:", accessToken);
-                    // Weiterleitung
                     const response = await getUserById(userId);
-                    console.log("Test:");
-                    const newToken = await refreshAccessToken(refreshTokenLokal);
-
-                    const accesTokenNew = newToken.data.accessToken;
-                    const refreshTokenNew = newToken.data.refreshToken;
-
-                    // neue Tokens speichern
-                    await SecureStore.setItemAsync("authToken", String(accesTokenNew));
-                    await SecureStore.setItemAsync("refreshToken", String(refreshTokenNew));
-                    console.log("Neuer Token:", accesTokenNew);
-
                     const user = response.data.data;
 
                     login(user.first_name, user.last_name, user.email, user.image, user.user_id);
@@ -57,6 +48,8 @@ export default function LoginScreen() {
                 }
             } catch (error) {
                 console.error("Token-Check fehlgeschlagen:", error);
+                await clearStoredAuth();
+                logout();
             } finally {
                 setLoading(false);
             }
@@ -69,7 +62,7 @@ export default function LoginScreen() {
     const handleLogin = async () => {
         // Prüfen, ob E-Mail und Passwort eingegeben wurden
         if (!email || !password) {
-            Alert.alert("Fehler", "Bitte E-Mail und Passwort eingeben.");
+            showFeedback("Hinweis", "Bitte E-Mail und Passwort eingeben.");
             return;
         }
 
@@ -91,24 +84,41 @@ export default function LoginScreen() {
             await SecureStore.setItemAsync("refreshToken", String(refreshToken));
             await SecureStore.setItemAsync("userId", String(user.user_id));
 
+            // Nach Login vollständiges Profil laden (wichtig: Name sofort verfügbar)
+            // Fallback auf Login-Response, falls Profil-Request fehlschlägt.
+            try {
+                const profileResponse = await getUserById(String(user.user_id));
+                const fullUser = profileResponse?.data?.data;
 
-            // User in Context speichern
-            login(user.first_name, user.last_name, user.email, undefined, user.user_id);
-
-            // Optional: Willkommen-Alert
-            Alert.alert("Erfolg", `Willkommen zurück, ${user.first_name || email}!`);
+                login(
+                    fullUser?.first_name ?? user.first_name ?? "",
+                    fullUser?.last_name ?? user.last_name ?? "",
+                    fullUser?.email ?? user.email,
+                    fullUser?.image,
+                    fullUser?.user_id ?? user.user_id
+                );
+            } catch (profileError) {
+                console.warn("Profil konnte nach Login nicht geladen werden:", profileError);
+                login(user.first_name ?? "", user.last_name ?? "", user.email, user.image, user.user_id);
+            }
 
             // Weiterleitung zum Feed
             router.replace("/(tabs)/feed");
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            // Fehlernachricht aus der API oder generisch
-            const message =
-                error.response?.data?.message ||
-                error.message ||
-                "Login fehlgeschlagen. Bitte überprüfe deine Eingaben.";
-            Alert.alert("Fehler", message);
+
+            if (axios.isAxiosError(error)) {
+                if (!error.response || error.code === "ERR_NETWORK") {
+                    showFeedback("Keine Verbindung", "Bitte Internetverbindung prüfen.");
+                } else if ([400, 401, 403, 404].includes(error.response.status)) {
+                    showFeedback("Login fehlgeschlagen", "E-Mail oder Passwort falsch.");
+                } else {
+                    showFeedback("Fehler", "Login fehlgeschlagen. Bitte später erneut versuchen.");
+                }
+            } else {
+                showFeedback("Fehler", "Login fehlgeschlagen. Bitte später erneut versuchen.");
+            }
         } finally {
             setLoading(false); // Ladezustand deaktivieren
         }
@@ -117,6 +127,13 @@ export default function LoginScreen() {
 
     return (
         <View style={styles.container}>
+            <FeedbackModal
+                visible={feedbackVisible}
+                title={feedbackTitle}
+                message={feedbackMessage}
+                onClose={() => setFeedbackVisible(false)}
+            />
+
             {loading ? (
                 <View style={styles.center}>
                     <ActivityIndicator size="large"/>
@@ -181,6 +198,11 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         padding: 24,
         backgroundColor: "#f8f9fa",
+    },
+    center: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
     },
     title: {
         fontSize: 28,
