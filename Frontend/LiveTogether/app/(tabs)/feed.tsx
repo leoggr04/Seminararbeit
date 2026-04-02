@@ -342,6 +342,21 @@ const Feed: React.FC = () => {
         return (item as any).type === "divider";
     };
 
+    const goToActivityOnMap = (activity: Activity) => {
+        const isPastActivity = new Date(activity.end_time) <= new Date();
+        if (isPastActivity) return;
+
+        router.push({
+            pathname: "/map",
+            params: {
+                focusLat: String(activity.latitude),
+                focusLng: String(activity.longitude),
+                focusPostId: String(activity.post_id),
+                focusTs: Date.now().toString(),
+            },
+        });
+    };
+
     const renderItem = ({ item }: { item: Activity | { type: "divider" } }) => {
         if (isDividerItem(item)) {
             return (
@@ -367,7 +382,12 @@ const Feed: React.FC = () => {
 
 
         return (
-            <TouchableOpacity style={styles.card} onPress={() => {}}>
+            <TouchableOpacity
+                style={styles.card}
+                onPress={() => goToActivityOnMap(activity)}
+                disabled={isPast}
+                activeOpacity={isPast ? 1 : 0.7}
+            >
                 <View style={{ opacity: isPast ? 0.5 : 1 }}>
                     {/* Alles, was ausgegraut werden soll */}
                     <View style={styles.row}>

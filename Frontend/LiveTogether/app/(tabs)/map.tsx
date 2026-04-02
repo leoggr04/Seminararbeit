@@ -1,6 +1,5 @@
 import DateTimePicker from "@/components/DateTimePicker";
 import MarkerWithEmoji from "@/components/MarkerWithEmoji";
-import SearchBar from "@/components/SearchBar";
 import {
     createActivity,
     deleteActivity,
@@ -14,20 +13,22 @@ import { AntDesign } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
-    Keyboard,
+    Animated,
     Modal,
+    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View
 } from "react-native";
-import MapView from "react-native-maps";
+import MapView, { Region } from "react-native-maps";
 
 
 const initialRegion = {
@@ -58,6 +59,7 @@ type ApiActivity = {
 
 type ActivityMarker = {
     post_id: number;
+    activity_type_id: number;
     latitude: number;
     longitude: number;
     user_id: number;
@@ -70,8 +72,19 @@ type ActivityMarker = {
     emoji: string;
 };
 
+type BubbleItem = {
+    id: number;
+    leaving: boolean;
+};
+
 const Map = () => {
     const router = useRouter();
+    const { focusLat, focusLng, focusPostId, focusTs } = useLocalSearchParams<{
+        focusLat?: string;
+        focusLng?: string;
+        focusPostId?: string;
+        focusTs?: string;
+    }>();
     const [markers, setMarkers] = useState<ActivityMarker[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [newMarkerCoords, setNewMarkerCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -85,12 +98,32 @@ const Map = () => {
     const [userId, setUserId] = useState<number | null>(null);
     const [selectedMarker, setSelectedMarker] = useState<ActivityMarker | null>(null);
     const [isSelectedMarkerJoined, setIsSelectedMarkerJoined] = useState(false);
+    const [mapInitialRegion, setMapInitialRegion] = useState(initialRegion);
+    const [isInitialRegionResolved, setIsInitialRegionResolved] = useState(false);
+    const [hasLocationPermission, setHasLocationPermission] = useState(false);
+    const [visibleRegion, setVisibleRegion] = useState<Region>(initialRegion);
     const now = new Date();
     const mapRef = React.useRef<MapView>(null);
+    const lastAppliedFocusKey = React.useRef<string | null>(null);
+    const lastVisibleRegionRef = React.useRef<Region>(initialRegion);
+    const bubbleItemsRef = React.useRef<BubbleItem[]>([]);
+    const bubbleTranslateAnimRef = React.useRef<Record<number, Animated.Value>>({});
+    const bubbleOpacityAnimRef = React.useRef<Record<number, Animated.Value>>({});
+    const leavingAnimationStartedRef = React.useRef<Set<number>>(new Set());
 
     const requestLocationPermission = async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const currentPermission = await Location.getForegroundPermissionsAsync();
+        let status = currentPermission.status;
+
         if (status !== "granted") {
+            const requestedPermission = await Location.requestForegroundPermissionsAsync();
+            status = requestedPermission.status;
+        }
+
+        const isGranted = status === "granted";
+        setHasLocationPermission(isGranted);
+
+        if (!isGranted) {
             Alert.alert("Berechtigung benötigt", "Die App benötigt Zugriff auf den Standort.");
             return false;
         }
@@ -98,8 +131,49 @@ const Map = () => {
     };
 
     useEffect(() => {
-        requestLocationPermission();
+        const resolveInitialRegion = async () => {
+            try {
+                const hasPermission = await requestLocationPermission();
+
+                if (!hasPermission) {
+                    setMapInitialRegion(initialRegion);
+                    return;
+                }
+
+                const providerStatus = await Location.getProviderStatusAsync();
+
+                if (!providerStatus.locationServicesEnabled) {
+                    setMapInitialRegion(initialRegion);
+                    return;
+                }
+
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+
+                const { latitude, longitude } = location.coords;
+                setMapInitialRegion({
+                    latitude,
+                    longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                });
+            } catch (err) {
+                console.error("Fehler beim Initialisieren der Kartenposition:", err);
+                setMapInitialRegion(initialRegion);
+            } finally {
+                setIsInitialRegionResolved(true);
+            }
+        };
+
+        resolveInitialRegion();
     }, []);
+
+    useEffect(() => {
+        if (!isInitialRegionResolved) return;
+        setVisibleRegion(mapInitialRegion);
+        lastVisibleRegionRef.current = mapInitialRegion;
+    }, [isInitialRegionResolved, mapInitialRegion]);
 
 
 
@@ -121,11 +195,8 @@ const Map = () => {
     }, []);
 
 
-    // 🔍 NEU: Suchbegriff
-    const [searchQuery, setSearchQuery] = useState<string>("");
-//-------------------   Autocomplete    ------------------
-    const [showSuggestions, setShowSuggestions] = useState(true);
-    const [isSearchActive, setIsSearchActive] = useState(false);
+    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+    const [bubbleItems, setBubbleItems] = useState<BubbleItem[]>([]);
 
 // 1️⃣ Lade Aktivitätstypen und Marker gemeinsam
     useEffect(() => {
@@ -152,13 +223,19 @@ const Map = () => {
 
                 // Activities (Marker) laden
                 const activities = await getAllActivities() as ApiActivity[];
+                const typeById = mappedTypes.reduce<Record<number, ActivityTypeOption>>((acc, type) => {
+                    acc[type.id] = type;
+                    return acc;
+                }, {});
+
                 const formattedMarkers = activities
                     .filter((a) => a.latitude != null && a.longitude != null)
                     .filter((a) => new Date(a.end_time) > now)
                     .map((a) => {
-                        const type = activityTypes.find(t => t.id === a.activity_type_id);
+                        const type = typeById[a.activity_type_id];
                         return {
                             post_id: a.post_id,
+                            activity_type_id: a.activity_type_id,
                             latitude: a.latitude,
                             longitude: a.longitude,
                             user_id: a.user_id,
@@ -183,35 +260,6 @@ const Map = () => {
         loadActivityTypesAndMarkers();
     }, []);
 
-
-
-
-    const uniqueDescription = React.useMemo(() => {
-        return Array.from(new Set(markers
-            .map(m => (m.description ?? "").trim())
-            .filter(t => t.length > 0)
-        ));
-    }, [markers]);
-
-    // Vorschläge für Suche
-    const suggestions = React.useMemo(() => {
-        if (!searchQuery.trim()) return [];
-        const q = searchQuery.toLowerCase().trim();
-        return uniqueDescription.filter(title => title.toLowerCase().startsWith(q)).slice(0, 5);
-    }, [uniqueDescription, searchQuery]);
-
-
-// Handler wenn ein Vorschlag ausgewählt wird
-    const handleSelectSuggestion = (suggestion: string) => {
-        if (suggestion) {
-            setSearchQuery(suggestion);
-        }
-        setShowSuggestions(false); // egal ob leer oder Vorschlag -> Liste weg
-        Keyboard.dismiss();
-        setIsSearchActive(false);
-
-    };
-
     function formatDateTime(iso?: Date | string) {
         if (!iso) return "-";
         const d = iso instanceof Date ? iso : new Date(iso);
@@ -233,13 +281,19 @@ const Map = () => {
             const loadMarkers = async () => {
                 try {
                     const activities = await getAllActivities() as ApiActivity[];
+                    const typeById = activityTypes.reduce<Record<number, ActivityTypeOption>>((acc, type) => {
+                        acc[type.id] = type;
+                        return acc;
+                    }, {});
+
                     const formattedMarkers = activities
                         .filter((a) => a.latitude != null && a.longitude != null)
                         .filter((a) => new Date(a.end_time) > now)
                         .map((a) => {
-                            const type = activityTypes.find(t => t.id === a.activity_type_id);
+                            const type = typeById[a.activity_type_id];
                             return {
                                 post_id: a.post_id,
+                                activity_type_id: a.activity_type_id,
                                 latitude: a.latitude,
                                 longitude: a.longitude,
                                 user_id: a.user_id,
@@ -266,6 +320,35 @@ const Map = () => {
             }
         }, [activityTypesMap]) // 👈 Dependency
     );
+
+    useEffect(() => {
+        if (!isInitialRegionResolved) return;
+
+        const latitude = Number(focusLat);
+        const longitude = Number(focusLng);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+        const postId = Number(focusPostId);
+        const focusKey = `${focusTs ?? ""}:${latitude}:${longitude}:${Number.isFinite(postId) ? postId : ""}`;
+
+        if (lastAppliedFocusKey.current === focusKey) return;
+
+        mapRef.current?.animateToRegion(
+            {
+                latitude,
+                longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+            },
+            1000
+        );
+
+        // Beim Sprung aus dem Feed nur zum Marker zoomen,
+        // aber kein Detail-Modal automatisch öffnen.
+        setModalVisible(false);
+
+        lastAppliedFocusKey.current = focusKey;
+    }, [focusLat, focusLng, focusPostId, focusTs, isInitialRegionResolved]);
 
 
 
@@ -306,6 +389,7 @@ const Map = () => {
                 ...prev,
                 {
                     post_id: savedActivity.id,
+                    activity_type_id: selectedActivityType.id,
                     latitude: savedActivity.latitude,
                     longitude: savedActivity.longitude,
                     activityTypeName: selectedActivityType.name,
@@ -421,10 +505,189 @@ const Map = () => {
 
 
 
-    // 🔍 Filtert Marker nach Suchbegriff (beschreibung)
-    const filteredMarkers = markers.filter(marker =>
-        (marker.description || "").toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredMarkers = markers.filter((marker) => {
+        return selectedCategoryId === null || marker.activity_type_id === selectedCategoryId;
+    });
+
+    const isMarkerInsideRegion = React.useCallback((marker: ActivityMarker, region: Region) => {
+        const latitudeHalfDelta = region.latitudeDelta / 2;
+        const longitudeHalfDelta = region.longitudeDelta / 2;
+
+        const minLatitude = region.latitude - latitudeHalfDelta;
+        const maxLatitude = region.latitude + latitudeHalfDelta;
+        const minLongitude = region.longitude - longitudeHalfDelta;
+        const maxLongitude = region.longitude + longitudeHalfDelta;
+
+        return (
+            marker.latitude >= minLatitude &&
+            marker.latitude <= maxLatitude &&
+            marker.longitude >= minLongitude &&
+            marker.longitude <= maxLongitude
+        );
+    }, []);
+
+    const visibleCategoryIds = React.useMemo(() => {
+        const ids = new Set<number>();
+
+        for (const marker of markers) {
+            if (isMarkerInsideRegion(marker, visibleRegion)) {
+                ids.add(marker.activity_type_id);
+            }
+        }
+
+        return ids;
+    }, [markers, visibleRegion, isMarkerInsideRegion]);
+
+    const visibleActivityTypes = React.useMemo(() => {
+        return activityTypes.filter((type) => visibleCategoryIds.has(type.id));
+    }, [activityTypes, visibleCategoryIds]);
+
+    useEffect(() => {
+        bubbleItemsRef.current = bubbleItems;
+    }, [bubbleItems]);
+
+    useEffect(() => {
+        const nextVisibleIds = visibleActivityTypes.map((type) => type.id);
+        const currentItems = bubbleItemsRef.current;
+        const currentIds = currentItems.map((item) => item.id);
+        const currentlyVisibleNonLeaving = currentItems.filter((item) => !item.leaving).length;
+        const shouldEnterFromAlle = currentlyVisibleNonLeaving === 0 && nextVisibleIds.length > 0;
+
+        const idsToAdd = nextVisibleIds.filter((id) => !currentIds.includes(id));
+        const idsToRemove = currentIds.filter((id) => !nextVisibleIds.includes(id));
+
+        const updatedItems: BubbleItem[] = currentItems.map((item) => {
+            if (nextVisibleIds.includes(item.id)) {
+                return { ...item, leaving: false };
+            }
+            return { ...item, leaving: true };
+        });
+
+        idsToAdd.forEach((id) => {
+            updatedItems.push({ id, leaving: false });
+
+            const startX = shouldEnterFromAlle ? -18 : 8;
+            bubbleTranslateAnimRef.current[id] = new Animated.Value(startX);
+            bubbleOpacityAnimRef.current[id] = new Animated.Value(0);
+
+            Animated.parallel([
+                Animated.timing(bubbleTranslateAnimRef.current[id], {
+                    toValue: 0,
+                    duration: 220,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(bubbleOpacityAnimRef.current[id], {
+                    toValue: 1,
+                    duration: 180,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        });
+
+        nextVisibleIds.forEach((id) => {
+            const wasLeaving = currentItems.some((item) => item.id === id && item.leaving);
+            if (!wasLeaving) return;
+
+            leavingAnimationStartedRef.current.delete(id);
+
+            if (!bubbleTranslateAnimRef.current[id]) {
+                bubbleTranslateAnimRef.current[id] = new Animated.Value(-10);
+            }
+            if (!bubbleOpacityAnimRef.current[id]) {
+                bubbleOpacityAnimRef.current[id] = new Animated.Value(0.7);
+            }
+
+            bubbleTranslateAnimRef.current[id].stopAnimation();
+            bubbleOpacityAnimRef.current[id].stopAnimation();
+
+            Animated.parallel([
+                Animated.timing(bubbleTranslateAnimRef.current[id], {
+                    toValue: 0,
+                    duration: 160,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(bubbleOpacityAnimRef.current[id], {
+                    toValue: 1,
+                    duration: 160,
+                    useNativeDriver: true,
+                }),
+            ]).start();
+        });
+
+        idsToRemove.forEach((id) => {
+            if (!bubbleTranslateAnimRef.current[id]) {
+                bubbleTranslateAnimRef.current[id] = new Animated.Value(0);
+            }
+            if (!bubbleOpacityAnimRef.current[id]) {
+                bubbleOpacityAnimRef.current[id] = new Animated.Value(1);
+            }
+        });
+
+        updatedItems.sort((a, b) => {
+            const ai = nextVisibleIds.indexOf(a.id);
+            const bi = nextVisibleIds.indexOf(b.id);
+
+            if (ai === -1 && bi === -1) return 0;
+            if (ai === -1) return 1;
+            if (bi === -1) return -1;
+            return ai - bi;
+        });
+
+        setBubbleItems(updatedItems);
+    }, [visibleActivityTypes]);
+
+    useEffect(() => {
+        bubbleItems.forEach((item) => {
+            if (!item.leaving) return;
+            if (leavingAnimationStartedRef.current.has(item.id)) return;
+
+            leavingAnimationStartedRef.current.add(item.id);
+
+            const translate = bubbleTranslateAnimRef.current[item.id] ?? new Animated.Value(0);
+            const opacity = bubbleOpacityAnimRef.current[item.id] ?? new Animated.Value(1);
+            bubbleTranslateAnimRef.current[item.id] = translate;
+            bubbleOpacityAnimRef.current[item.id] = opacity;
+
+            Animated.parallel([
+                Animated.timing(translate, {
+                    toValue: -24,
+                    duration: 180,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(opacity, {
+                    toValue: 0,
+                    duration: 150,
+                    useNativeDriver: true,
+                }),
+            ]).start(() => {
+                leavingAnimationStartedRef.current.delete(item.id);
+                setBubbleItems((current) => current.filter((currentItem) => currentItem.id !== item.id));
+                delete bubbleTranslateAnimRef.current[item.id];
+                delete bubbleOpacityAnimRef.current[item.id];
+            });
+        });
+    }, [bubbleItems]);
+
+    useEffect(() => {
+        if (selectedCategoryId !== null && !visibleCategoryIds.has(selectedCategoryId)) {
+            setSelectedCategoryId(null);
+        }
+    }, [selectedCategoryId, visibleCategoryIds]);
+
+    const handleRegionChangeComplete = React.useCallback((region: Region) => {
+        const previous = lastVisibleRegionRef.current;
+
+        const hasMeaningfulChange =
+            Math.abs(previous.latitude - region.latitude) > 0.0002 ||
+            Math.abs(previous.longitude - region.longitude) > 0.0002 ||
+            Math.abs(previous.latitudeDelta - region.latitudeDelta) > 0.0002 ||
+            Math.abs(previous.longitudeDelta - region.longitudeDelta) > 0.0002;
+
+        if (!hasMeaningfulChange) return;
+
+        lastVisibleRegionRef.current = region;
+        setVisibleRegion(region);
+    }, []);
 
     return (
         <View style={{ flex: 1 }}>
@@ -445,52 +708,103 @@ const Map = () => {
             </TouchableOpacity>
 
 
-            <MapView
-                ref={mapRef}
-                style={StyleSheet.absoluteFill}
-                initialRegion={initialRegion}
-                showsUserLocation
-                showsMyLocationButton={false}
-                showsCompass={false}
-                showsPointsOfInterest
-                showsBuildings
-                onPress={(e) => {
-                    if(isSearchActive) {
-                        setIsSearchActive(false);
-                        setShowSuggestions(false);
-                        Keyboard.dismiss();
-                        return;
-                    }
-                    handleMapPress(e);
-                }}
-            >
-                {filteredMarkers.map((marker) => (
-                    <MarkerWithEmoji
-                        // stable key -> not changing due to filtering
-                        // if no stable key used, emoji falls back to default after applying filter
-                        key={marker.post_id?.toString() || `${marker.latitude}-${marker.longitude}`}
-                        marker={marker}
-                        onPress={() => handleMarkerPress(marker)}
-                    />
-                ))}
+            {!isInitialRegionResolved && (
+                <View style={styles.locationLoadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.locationLoadingText}>Standort wird geladen…</Text>
+                </View>
+            )}
 
-            </MapView>
+            {isInitialRegionResolved && (
+                <MapView
+                    key={hasLocationPermission ? "map-with-location" : "map-without-location"}
+                    ref={mapRef}
+                    style={StyleSheet.absoluteFill}
+                    initialRegion={mapInitialRegion}
+                    showsUserLocation={hasLocationPermission}
+                    showsMyLocationButton={false}
+                    showsCompass={false}
+                    showsPointsOfInterest
+                    showsBuildings
+                    onPress={handleMapPress}
+                    onRegionChangeComplete={handleRegionChangeComplete}
+                >
+                    {filteredMarkers.map((marker) => (
+                        <MarkerWithEmoji
+                            // stable key -> not changing due to filtering
+                            // if no stable key used, emoji falls back to default after applying filter
+                            key={marker.post_id?.toString() || `${marker.latitude}-${marker.longitude}`}
+                            marker={marker}
+                            onPress={() => handleMarkerPress(marker)}
+                        />
+                    ))}
 
-            {/* 🔍 Suchleiste */}
+                </MapView>
+            )}
+
+            {/* Kategorie-Bubbles */}
             <View
                 style={{ marginTop: 50, paddingHorizontal: 16 }}>
-                <SearchBar
-                    placeholder="Suche eine Aktivität"
-                    value={searchQuery}
-                    onChangeText={(text) => {
-                        setSearchQuery(text);
-                        setShowSuggestions(true);
-                        setIsSearchActive(true);
-                    }}
-                    suggestions={suggestions}
-                    showSuggestions={showSuggestions}
-                    onSelectSuggestion={handleSelectSuggestion}
-                />
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.categoryRow}
+                >
+                    <TouchableOpacity
+                        style={[
+                            styles.categoryBubble,
+                            selectedCategoryId === null && styles.categoryBubbleActive,
+                        ]}
+                        onPress={() => setSelectedCategoryId(null)}
+                    >
+                        <Text
+                            style={[
+                                styles.categoryBubbleText,
+                                selectedCategoryId === null && styles.categoryBubbleTextActive,
+                            ]}
+                        >
+                            ✨ Alle
+                        </Text>
+                    </TouchableOpacity>
+
+                    {bubbleItems.map((item) => {
+                        const type = activityTypes.find((t) => t.id === item.id);
+                        if (!type) return null;
+
+                        const isActive = selectedCategoryId === type.id;
+                        const translateX = bubbleTranslateAnimRef.current[type.id] ?? new Animated.Value(0);
+                        const opacity = bubbleOpacityAnimRef.current[type.id] ?? new Animated.Value(1);
+                        bubbleTranslateAnimRef.current[type.id] = translateX;
+                        bubbleOpacityAnimRef.current[type.id] = opacity;
+
+                        return (
+                            <Animated.View
+                                key={type.id}
+                                style={{
+                                    opacity,
+                                    transform: [{ translateX }],
+                                }}
+                            >
+                                <TouchableOpacity
+                                    style={[
+                                        styles.categoryBubble,
+                                        isActive && styles.categoryBubbleActive,
+                                    ]}
+                                    onPress={() => setSelectedCategoryId(type.id)}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.categoryBubbleText,
+                                            isActive && styles.categoryBubbleTextActive,
+                                        ]}
+                                    >
+                                        {(type.emoji || "📍")} {type.name}
+                                    </Text>
+                                </TouchableOpacity>
+                            </Animated.View>
+                        );
+                    })}
+                </ScrollView>
             </View>
 
             {/* Modal für neue Marker */}
@@ -637,6 +951,18 @@ const Map = () => {
 };
 
 const styles = StyleSheet.create({
+    locationLoadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "white",
+    },
+    locationLoadingText: {
+        marginTop: 12,
+        fontSize: 15,
+        color: "#334155",
+        fontWeight: "600",
+    },
     modalBackground: {
         flex: 1,
         backgroundColor: "rgba(0,0,0,0.5)",
@@ -688,6 +1014,31 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: "#334155",
         lineHeight: 20,
+    },
+    categoryRow: {
+        paddingTop: 10,
+        paddingBottom: 2,
+        gap: 8,
+    },
+    categoryBubble: {
+        backgroundColor: "rgba(255,255,255,0.95)",
+        borderRadius: 999,
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    categoryBubbleActive: {
+        backgroundColor: "#1d4ed8",
+        borderColor: "#1d4ed8",
+    },
+    categoryBubbleText: {
+        fontSize: 14,
+        fontWeight: "600",
+        color: "#0f172a",
+    },
+    categoryBubbleTextActive: {
+        color: "white",
     },
     emojiButton: {
         padding: 6,
