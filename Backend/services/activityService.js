@@ -12,16 +12,24 @@ async function listTypes() {
 }
 
 async function createPost(data) {
+  console.log('[Activity] Creating activity post with data:', data);
   const post = await ActivityPost.createActivityPost(data);
-  // Create associated chat with activity name
-  if (post && post.post_id) {
-    try {
-      await ChatService.createChat([data.user_id], `Activity: ${data.description || 'Activity'} (${post.post_id})`);
-    } catch (err) {
-      console.error('Error creating chat for activity:', err);
-    }
+  console.log('[Activity] Post created:', post);
+
+  if (!post || !post.post_id) {
+    throw new Error('post_create_failed');
   }
-  return post;
+
+  const chatName = data.description?.trim() || `Activity ${post.post_id}`;
+  console.log('[Activity] Creating chat with name:', chatName, 'for user:', data.user_id);
+  const chat = await ChatService.createChat([data.user_id], chatName);
+
+  if (!chat || !chat.chat_id) {
+    throw new Error('chat_create_failed');
+  }
+
+  console.log('[Activity] Chat created successfully:', chat);
+  return { ...post, chat_id: chat.chat_id };
 }
 
 async function getPost(id) {

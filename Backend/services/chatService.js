@@ -2,6 +2,7 @@ const Chat = require('../models/chatModel');
 const ChatParticipant = require('../models/chatParticipantModel');
 const Message = require('../models/messageModel');
 const Notification = require('../models/notificationModel');
+const { broadcastChatsUpdate, broadcastChatUpdate } = require('./wsHub');
 
 async function createChat(participantIds = [], chatName = null) {
   const chat = await Chat.createChat(chatName);
@@ -9,15 +10,20 @@ async function createChat(participantIds = [], chatName = null) {
   for (const uid of participantIds) {
     await ChatParticipant.addParticipant(chatId, uid);
   }
+  broadcastChatsUpdate({ action: 'chat_created', chatId, chatName });
   return chat;
 }
 
 async function addParticipant(chatId, userId) {
-  return ChatParticipant.addParticipant(chatId, userId);
+  const result = await ChatParticipant.addParticipant(chatId, userId);
+  broadcastChatUpdate(chatId, { action: 'participant_added', userId });
+  return result;
 }
 
 async function removeParticipant(chatId, userId) {
-  return ChatParticipant.removeParticipant(chatId, userId);
+  const result = await ChatParticipant.removeParticipant(chatId, userId);
+  broadcastChatUpdate(chatId, { action: 'participant_removed', userId });
+  return result;
 }
 
 async function listParticipants(chatId) {
@@ -42,6 +48,7 @@ async function sendMessage(chatId, senderId, content) {
       await Notification.createNotification(p.user_id, 'new_message', notifContent);
     }
   }
+  broadcastChatUpdate(chatId, { action: 'message_created', message: msg });
   return msg;
 }
 
