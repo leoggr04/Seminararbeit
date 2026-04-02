@@ -102,12 +102,6 @@ const Messages = () => {
 
 
     const renderChatItem = ({ item }: { item: Chat }) => {
-        // Zufallszahl zwischen 1 und 9
-        const randomNum = Math.floor(Math.random() * 9) + 1;
-
-        // Bild-URL mit zufälliger Zahl
-        const avatarUri = item.avatar || `https://randomuser.me/api/portraits/lego/${randomNum}.jpg`;
-
         return (
             <TouchableOpacity
                 style={styles.chatItem}
@@ -117,10 +111,6 @@ const Messages = () => {
                 })}
                 activeOpacity={0.8}
             >
-                <Image
-                    source={{ uri: avatarUri }}
-                    style={styles.avatar}
-                />
                 <View style={styles.chatContent}>
                     <View style={styles.chatHeader}>
                         <Text style={styles.chatName}>{item.chat_name || `Chat ${item.chat_id}`}</Text>
@@ -290,8 +280,7 @@ const styles = StyleSheet.create({
     modalButtonSecondaryText: { color: "#333", fontWeight: "600" },
     modalButtonPrimary: { backgroundColor: "#4e9bff" },
     modalButtonPrimaryText: { color: "#fff", fontWeight: "600" },
-    chatItem: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 14, padding: 12, marginBottom: 12, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 6, elevation: 1 },
-    avatar: { width: 60, height: 60, borderRadius: 30, marginRight: 12 },
+    chatItem: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
     chatContent: { flex: 1, borderBottomColor: "#eee" },
     chatHeader: { flexDirection: "row", justifyContent: "space-between" },
     chatName: { fontSize: 18, fontWeight: "600" },
