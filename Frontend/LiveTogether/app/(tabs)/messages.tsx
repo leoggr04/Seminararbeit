@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Modal, TextInput } from "react-native";
+import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import { createNewChat, listChats } from "@/services/api";
+import { createNewChat, getUserByEmail, listChats } from "@/services/api";
 import { useUser } from "@/components/UserContext";
 
 interface Chat {
@@ -10,6 +10,11 @@ interface Chat {
     // Optional: falls dein Backend auch Teilnehmer zurückgibt
     chat_name?: string;
     avatar?: string;
+}
+
+interface SelectedParticipant {
+    id: number;
+    email: string;
 }
 
 const Messages = () => {
@@ -21,7 +26,7 @@ const Messages = () => {
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [chatName, setChatName] = useState("");
     const [participantInput, setParticipantInput] = useState("");
-    const [participantIds, setParticipantIds] = useState<number[]>([]);
+    const [selectedParticipants, setSelectedParticipants] = useState<SelectedParticipant[]>([]);
 
     const fetchChats = async () => {
         try {
@@ -39,9 +44,13 @@ const Messages = () => {
     }, []);
 
     const handleCreateChat = async () => {
-        if(!participantIds.includes(Number(user?.id))) {
-            participantIds.push(Number(user?.id));
+        const participantIds = selectedParticipants.map((p) => p.id);
+        const currentUserId = Number(user?.id);
+
+        if (Number.isFinite(currentUserId) && currentUserId > 0 && !participantIds.includes(currentUserId)) {
+            participantIds.push(currentUserId);
         }
+
         if (isCreatingChat || participantIds.length === 0) return;
         setIsCreatingChat(true);
         try {
@@ -51,7 +60,7 @@ const Messages = () => {
             setIsModalVisible(false);
             setChatName("");
             setParticipantInput("");
-            setParticipantIds([]);
+            setSelectedParticipants([]);
         } catch (error) {
             console.log("Fehler beim Erstellen des Chats:", error);
         } finally {
@@ -59,16 +68,35 @@ const Messages = () => {
         }
     };
 
-    const addParticipantId = () => {
-        const id = Number(participantInput.trim());
-        if (!Number.isFinite(id) || id <= 0) return;
-        if (participantIds.includes(id)) return;
-        setParticipantIds((prev) => [...prev, id]);
-        setParticipantInput("");
+    const addParticipantId = async () => {
+        const email = participantInput.trim().toLowerCase();
+        if (!email) return;
+
+        try {
+            const userRes = await getUserByEmail(email);
+            const user = userRes?.data?.data || userRes?.data || userRes;
+            const id = Number(user?.user_id || user?.id);
+
+            if (!Number.isFinite(id) || id <= 0) {
+                Alert.alert("Fehler", "Kein Nutzer mit dieser E-Mail gefunden.");
+                return;
+            }
+
+            if (selectedParticipants.some((p) => p.id === id)) {
+                Alert.alert("Hinweis", "Dieser Nutzer wurde bereits hinzugefügt.");
+                return;
+            }
+
+            setSelectedParticipants((prev) => [...prev, { id, email }]);
+            setParticipantInput("");
+        } catch (error) {
+            console.log("Fehler beim Suchen des Users per E-Mail:", error);
+            Alert.alert("Fehler", "Nutzer konnte nicht über E-Mail gefunden werden.");
+        }
     };
 
     const removeParticipantId = (id: number) => {
-        setParticipantIds((prev) => prev.filter((x) => x !== id));
+        setSelectedParticipants((prev) => prev.filter((x) => x.id !== id));
     };
 
 
@@ -144,12 +172,14 @@ const Messages = () => {
                             onChangeText={setChatName}
                         />
 
-                        <Text style={styles.modalLabel}>Teilnehmer-ID hinzufügen</Text>
+                        <Text style={styles.modalLabel}>Teilnehmer per E-Mail hinzufügen</Text>
                         <View style={styles.modalRow}>
                             <TextInput
                                 style={[styles.modalInput, { flex: 1 }]}
-                                placeholder="User-ID"
-                                keyboardType="number-pad"
+                                placeholder="E-Mail"
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                                autoCorrect={false}
                                 value={participantInput}
                                 onChangeText={setParticipantInput}
                             />
@@ -159,13 +189,13 @@ const Messages = () => {
                         </View>
 
                         <View style={styles.chipContainer}>
-                            {participantIds.map((id) => (
+                            {selectedParticipants.map((participant) => (
                                 <TouchableOpacity
-                                    key={id}
+                                    key={participant.id}
                                     style={styles.chip}
-                                    onPress={() => removeParticipantId(id)}
+                                    onPress={() => removeParticipantId(participant.id)}
                                 >
-                                    <Text style={styles.chipText}>ID {id} ✕</Text>
+                                    <Text style={styles.chipText}>{participant.email} ✕</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -180,7 +210,7 @@ const Messages = () => {
                             <TouchableOpacity
                                 style={[styles.modalButton, styles.modalButtonPrimary]}
                                 onPress={handleCreateChat}
-                                disabled={isCreatingChat || participantIds.length === 0}
+                                disabled={isCreatingChat || selectedParticipants.length === 0}
                             >
                                 <Text style={styles.modalButtonPrimaryText}>Erstellen</Text>
                             </TouchableOpacity>
