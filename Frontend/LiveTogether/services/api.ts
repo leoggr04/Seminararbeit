@@ -221,6 +221,11 @@ export const getAllSelfActivities = async() =>{
     return res.data.data;
 }
 
+export const removeParticipantFromActivity = async (postId:number, userId:number) =>{
+    const res = await api.delete(`/activities/posts/${postId}/participants/${userId}`);
+    return res.data;
+}
+
 //=========================================================================
 //  chat
 //=========================================================================

@@ -79,6 +79,7 @@ const Feed: React.FC = () => {
     // State für Teilnehmer-Modal
     const [participantsModalVisible, setParticipantsModalVisible] = useState(false);
     const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
+    const [selectedActivityOwnerId, setSelectedActivityOwnerId] = useState<number | null>(null);
 
     // Toast Nachricht
     const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -201,6 +202,7 @@ const Feed: React.FC = () => {
 
     const handleParticipants = (activity: Activity) => {
         setSelectedPostId(activity.post_id);
+        setSelectedActivityOwnerId(activity.user_id);
         setParticipantsModalVisible(true);
     };
 
@@ -567,10 +569,11 @@ const Feed: React.FC = () => {
             />
 
 
-            {selectedPostId !== null && (
+            {selectedPostId !== null && selectedActivityOwnerId !== null && (
                 <ParticipantsModal
                     visible={participantsModalVisible}
                     postId={selectedPostId}
+                    activityOwnerId={selectedActivityOwnerId}
                     onClose={() => setParticipantsModalVisible(false)}
                 />
             )}

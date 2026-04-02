@@ -6,12 +6,13 @@ Creator: David Pleyer
 Version: v1
 */
 
-import { getAlLParticipantsOfPost } from "@/services/api";
+import { getAlLParticipantsOfPost, removeParticipantFromActivity } from "@/services/api";
 import * as SecureStore from "expo-secure-store";
-import { Users, UserX, X } from "lucide-react-native";
+import { Trash2, Users, UserX, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Modal,
     StyleSheet,
@@ -32,14 +33,17 @@ type Participant = {
 type ParticipantsModalProps = {
     visible: boolean;
     postId: number;
+    activityOwnerId: number;
     onClose: () => void;
 };
 
-const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, onClose }) => {
+const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, activityOwnerId, onClose }) => {
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+    const [participantToDelete, setParticipantToDelete] = useState<Participant | null>(null);
 
     useEffect(() => {
         const loadUserId = async () => {
@@ -70,8 +74,31 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
         fetchParticipants();
     }, [visible, postId]);
 
+    const handleRemoveParticipant = (participant: Participant) => {
+        setParticipantToDelete(participant);
+        setDeleteModalVisible(true);
+    };
+
+    const handleConfirmRemove = async () => {
+        if (!participantToDelete) return;
+        
+        setDeleteModalVisible(false);
+        try {
+            await removeParticipantFromActivity(postId, participantToDelete.user_id);
+            // Entferne den Nutzer aus der Liste
+            setParticipants(participants.filter(p => p.user_id !== participantToDelete.user_id));
+        } catch (err: any) {
+            console.error("Fehler beim Entfernen des Nutzers:", err);
+            Alert.alert("Fehler", err?.message || "Nutzer konnte nicht entfernt werden");
+        } finally {
+            setParticipantToDelete(null);
+        }
+    };
+
     const renderParticipant = ({ item }: { item: Participant }) => {
         const isMe = currentUserId != null && item.user_id === currentUserId;
+        const isOwner = currentUserId != null && currentUserId === activityOwnerId;
+        const canRemove = isOwner && !isMe;
         const displayName = `${item.first_name} ${item.last_name}`;
 
         return (
@@ -83,11 +110,17 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
                         <Text style={styles.meBadgeText}>Du</Text>
                     </View>
                 )}
+                {canRemove && (
+                    <TouchableOpacity onPress={() => handleRemoveParticipant(item)} style={styles.deleteButton}>
+                        <Trash2 size={20} color="#dc2626" />
+                    </TouchableOpacity>
+                )}
             </View>
         );
     };
 
     return (
+        <>
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.modalOverlay}>
                 <View style={styles.modalContainer}>
@@ -125,6 +158,35 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
                 </View>
             </View>
         </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal visible={deleteModalVisible} transparent animationType="fade" onRequestClose={() => setDeleteModalVisible(false)}>
+            <View style={styles.modalOverlay}>
+                <View style={styles.confirmModalBox}>
+                    <Text style={styles.confirmModalTitle}>Teilnehmer löschen</Text>
+                    <Text style={styles.confirmModalMessage}>
+                        Willst du wirklich {participantToDelete?.first_name} {participantToDelete?.last_name} löschen?
+                    </Text>
+
+                    <View style={styles.confirmModalButtons}>
+                        <TouchableOpacity
+                            style={[styles.confirmModalButton, { backgroundColor: "#6c757d" }]}
+                            onPress={() => setDeleteModalVisible(false)}
+                        >
+                            <Text style={styles.confirmModalButtonText}>Nein</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.confirmModalButton, { backgroundColor: "#dc3545" }]}
+                            onPress={handleConfirmRemove}
+                        >
+                            <Text style={styles.confirmModalButtonText}>Ja, löschen</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+        </>
     );
 };
 
@@ -163,7 +225,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 8,
-        paddingHorizontal: 4,
+        paddingHorizontal: 12,
         borderRadius: 8,
         backgroundColor: "#f2f2f2",
     },
@@ -171,6 +233,10 @@ const styles = StyleSheet.create({
         backgroundColor: "#e8f1ff",
         borderWidth: 1,
         borderColor: "#bfdbfe",
+    },
+    deleteButton: {
+        marginLeft: "auto",
+        padding: 6,
     },
     participantName: {
         fontSize: 16,
@@ -203,6 +269,40 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: "#888",
         fontWeight: "500",
+    },
+    confirmModalBox: {
+        backgroundColor: "#fff",
+        padding: 20,
+        borderRadius: 12,
+        width: "90%",
+    },
+    confirmModalTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        marginBottom: 10,
+        textAlign: "center",
+    },
+    confirmModalMessage: {
+        fontSize: 16,
+        marginBottom: 20,
+        textAlign: "center",
+    },
+    confirmModalButtons: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: 12,
+    },
+    confirmModalButton: {
+        flex: 1,
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 6,
+        alignItems: "center",
+    },
+    confirmModalButtonText: {
+        color: "white",
+        fontSize: 14,
+        fontWeight: "600",
     },
 });
 
