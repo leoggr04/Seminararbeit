@@ -1,6 +1,7 @@
 const ActivityPost = require('../models/activityPostModel');
 const ActivityType = require('../models/activityTypeModel');
 const Participants = require('../models/participantsModel');
+const ChatService = require('./chatService');
 
 async function createType(name, icon_url) {
   return ActivityType.createActivityType(name, icon_url);
@@ -11,7 +12,16 @@ async function listTypes() {
 }
 
 async function createPost(data) {
-  return ActivityPost.createActivityPost(data);
+  const post = await ActivityPost.createActivityPost(data);
+  // Create associated chat with activity name
+  if (post && post.post_id) {
+    try {
+      await ChatService.createChat([data.user_id], `Activity: ${data.description || 'Activity'} (${post.post_id})`);
+    } catch (err) {
+      console.error('Error creating chat for activity:', err);
+    }
+  }
+  return post;
 }
 
 async function getPost(id) {
@@ -42,6 +52,19 @@ async function joinPost(postId, userId) {
   if (!post) throw new Error('not_found');
   if (post.user_id === userId) throw new Error('owner_cannot_join');
   const added = await Participants.addParticipant(postId, userId);
+  
+  // Also add to associated chat
+  try {
+    // Chat name format: "Activity: {description} ({postId})"
+    const chats = await ChatService.listChatsForUser(post.user_id);
+    const activityChat = chats.find((c) => c.chat_name && c.chat_name.includes(`(${postId})`) && c.chat_name.startsWith('Activity:'));
+    if (activityChat) {
+      await ChatService.addParticipant(activityChat.chat_id, userId);
+    }
+  } catch (err) {
+    console.error('Error adding user to activity chat:', err);
+  }
+  
   return added;
 }
 
@@ -49,6 +72,18 @@ async function leavePost(postId, userId) {
   const post = await ActivityPost.getActivityPostById(postId);
   if (!post) throw new Error('not_found');
   const removed = await Participants.removeParticipant(postId, userId);
+  
+  // Also remove from associated chat
+  try {
+    const chats = await ChatService.listChatsForUser(post.user_id);
+    const activityChat = chats.find((c) => c.chat_name && c.chat_name.includes(`(${postId})`) && c.chat_name.startsWith('Activity:'));
+    if (activityChat) {
+      await ChatService.removeParticipant(activityChat.chat_id, userId);
+    }
+  } catch (err) {
+    console.error('Error removing user from activity chat:', err);
+  }
+  
   return removed;
 }
 
@@ -62,6 +97,18 @@ async function removeParticipant(postId, actorUserId, participantUserId) {
   if (!isParticipant) throw new Error('participant_not_found');
 
   const removed = await Participants.removeParticipant(postId, participantUserId);
+  
+  // Also remove from associated chat
+  try {
+    const chats = await ChatService.listChatsForUser(post.user_id);
+    const activityChat = chats.find((c) => c.chat_name && c.chat_name.includes(`(${postId})`) && c.chat_name.startsWith('Activity:'));
+    if (activityChat) {
+      await ChatService.removeParticipant(activityChat.chat_id, participantUserId);
+    }
+  } catch (err) {
+    console.error('Error removing user from activity chat:', err);
+  }
+  
   return removed;
 }
 
