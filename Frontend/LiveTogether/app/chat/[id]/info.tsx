@@ -5,7 +5,6 @@ import {
     StyleSheet,
     FlatList,
     TouchableOpacity,
-    SafeAreaView,
     TextInput,
     Modal,
     ActivityIndicator,
@@ -14,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { listChatParticipants, deleteChatParticipant, addParticipantToChat, getUserByEmail } from "@/services/api";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Participant {
     id?: number;
@@ -128,8 +128,8 @@ export default function ChatInfoScreen() {
 
     return (
         <>
-        <Stack.Screen options={{ headerShown: false }} />
-        <SafeAreaView style={styles.container}>
+        <Stack.Screen options={{ headerShown: false, contentStyle: { backgroundColor: "#f8f9fa" } }} />
+        <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="black" />

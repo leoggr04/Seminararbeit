@@ -1,5 +1,5 @@
 const ActivityService = require('../services/activityService');
-const { listParticipants: listParticipantsSvc, joinPost: joinPostSvc, leavePost: leavePostSvc } = require('../services/activityService');
+const { listParticipants: listParticipantsSvc, joinPost: joinPostSvc, leavePost: leavePostSvc, removeParticipant: removeParticipantSvc } = require('../services/activityService');
 
 async function createType(req, res) {
   const { name, icon_url } = req.body;
@@ -597,6 +597,55 @@ async function leavePost(req, res) {
   }
 }
 
+/**
+ * @openapi
+ * /api/activities/posts/{id}/participants/{userId}:
+ *   delete:
+ *     tags:
+ *       - activity
+ *     summary: Remove a participant from a post
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Participant removed
+ *       400:
+ *         description: Invalid ID
+ *       403:
+ *         description: Forbidden
+ *       404:
+ *         description: Post or participant not found
+ */
+async function removeParticipant(req, res) {
+  const id = parseInt(req.params.id, 10);
+  const userId = parseInt(req.params.userId, 10);
+  if (Number.isNaN(id) || Number.isNaN(userId)) return res.status(400).json({ error: 'invalid id' });
+
+  try {
+    const removed = await removeParticipantSvc(id, req.user.user_id, userId);
+    return res.json({ success: true, removed });
+  } catch (err) {
+    if (err.message === 'not_found') return res.status(404).json({ error: 'not_found' });
+    if (err.message === 'participant_not_found') return res.status(404).json({ error: 'participant_not_found' });
+    if (err.message === 'cannot_remove_owner') return res.status(400).json({ error: 'cannot_remove_owner' });
+    if (err.message === 'forbidden') return res.status(403).json({ error: 'forbidden' });
+    console.error(err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
 // append new handlers to exports
 module.exports = Object.assign(module.exports, { listParticipants, joinPost, leavePost });
+module.exports = Object.assign(module.exports, { listParticipants, joinPost, leavePost, removeParticipant });
 

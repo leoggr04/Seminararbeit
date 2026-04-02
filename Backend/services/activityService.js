@@ -52,6 +52,19 @@ async function leavePost(postId, userId) {
   return removed;
 }
 
+async function removeParticipant(postId, actorUserId, participantUserId) {
+  const post = await ActivityPost.getActivityPostById(postId);
+  if (!post) throw new Error('not_found');
+  if (post.user_id !== actorUserId) throw new Error('forbidden');
+  if (post.user_id === participantUserId) throw new Error('cannot_remove_owner');
+
+  const isParticipant = await Participants.isParticipant(postId, participantUserId);
+  if (!isParticipant) throw new Error('participant_not_found');
+
+  const removed = await Participants.removeParticipant(postId, participantUserId);
+  return removed;
+}
+
 async function listParticipants(postId) {
   const post = await ActivityPost.getActivityPostById(postId);
   if (!post) throw new Error('not_found');
@@ -78,5 +91,6 @@ module.exports = {
   listPostsBySelf,
   joinPost,
   leavePost,
+  removeParticipant,
   listParticipants,
 };

@@ -21,5 +21,6 @@ router.get('/self', authenticate, ActivityController.listPostsBySelf);
 router.get('/posts/:id/participants', authenticate, ActivityController.listParticipants);
 router.post('/posts/:id/join', authenticate, ActivityController.joinPost);
 router.post('/posts/:id/leave', authenticate, ActivityController.leavePost);
+router.delete('/posts/:id/participants/:userId', authenticate, ActivityController.removeParticipant);
 
 module.exports = router;
