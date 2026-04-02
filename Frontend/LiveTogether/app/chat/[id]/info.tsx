@@ -9,9 +9,10 @@ import {
     TextInput,
     Modal,
     ActivityIndicator,
+    Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { listChatParticipants, deleteChatParticipant, addParticipantToChat } from "@/services/api";
+import { listChatParticipants, deleteChatParticipant, addParticipantToChat, getUserByEmail } from "@/services/api";
 import Ionicons from "@expo/vector-icons/Ionicons";
 
 interface Participant {
@@ -33,7 +34,7 @@ export default function ChatInfoScreen() {
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalVisible, setIsModalVisible] = useState(false);
-    const [userIdInput, setUserIdInput] = useState("");
+    const [userEmailInput, setUserEmailInput] = useState("");
     const [isAdding, setIsAdding] = useState(false);
 
     const fetchParticipants = async () => {
@@ -59,17 +60,32 @@ export default function ChatInfoScreen() {
     }, [chatId]);
 
     const handleAddParticipant = async () => {
-        const userId = Number(userIdInput.trim());
-        if (!Number.isFinite(userId) || userId <= 0) return;
+        const email = userEmailInput.trim().toLowerCase();
+        if (!email) return;
         
         setIsAdding(true);
         try {
+            const userRes = await getUserByEmail(email);
+            const user = userRes?.data?.data || userRes?.data || userRes;
+            const userId = Number(user?.user_id || user?.id);
+
+            if (!Number.isFinite(userId) || userId <= 0) {
+                Alert.alert("Fehler", "Kein Nutzer mit dieser E-Mail gefunden.");
+                return;
+            }
+
+            if (participants.some((p) => Number(p.id) === userId)) {
+                Alert.alert("Hinweis", "Dieser Nutzer ist bereits im Chat.");
+                return;
+            }
+
             await addParticipantToChat(chatId, userId);
-            setUserIdInput("");
+            setUserEmailInput("");
             setIsModalVisible(false);
             await fetchParticipants();
         } catch (err) {
             console.log("Fehler beim Hinzufügen des Teilnehmers:", err);
+            Alert.alert("Fehler", "Nutzer konnte nicht hinzugefügt werden.");
         } finally {
             setIsAdding(false);
         }
@@ -151,10 +167,12 @@ export default function ChatInfoScreen() {
                         <Text style={styles.modalTitle}>Teilnehmer hinzufügen</Text>
                         <TextInput
                             style={styles.modalInput}
-                            placeholder="User-ID"
-                            keyboardType="number-pad"
-                            value={userIdInput}
-                            onChangeText={setUserIdInput}
+                            placeholder="E-Mail"
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            value={userEmailInput}
+                            onChangeText={setUserEmailInput}
                         />
                         <View style={styles.modalActions}>
                             <TouchableOpacity
