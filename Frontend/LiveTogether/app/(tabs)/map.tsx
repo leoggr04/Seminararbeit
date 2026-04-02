@@ -14,7 +14,7 @@ import { AntDesign } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
@@ -73,6 +73,12 @@ type ActivityMarker = {
 
 const Map = () => {
     const router = useRouter();
+    const { focusLat, focusLng, focusPostId, focusTs } = useLocalSearchParams<{
+        focusLat?: string;
+        focusLng?: string;
+        focusPostId?: string;
+        focusTs?: string;
+    }>();
     const [markers, setMarkers] = useState<ActivityMarker[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [newMarkerCoords, setNewMarkerCoords] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -91,6 +97,7 @@ const Map = () => {
     const [hasLocationPermission, setHasLocationPermission] = useState(false);
     const now = new Date();
     const mapRef = React.useRef<MapView>(null);
+    const lastAppliedFocusKey = React.useRef<string | null>(null);
 
     const requestLocationPermission = async () => {
         const currentPermission = await Location.getForegroundPermissionsAsync();
@@ -315,6 +322,35 @@ const Map = () => {
             }
         }, [activityTypesMap]) // 👈 Dependency
     );
+
+    useEffect(() => {
+        if (!isInitialRegionResolved) return;
+
+        const latitude = Number(focusLat);
+        const longitude = Number(focusLng);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+        const postId = Number(focusPostId);
+        const focusKey = `${focusTs ?? ""}:${latitude}:${longitude}:${Number.isFinite(postId) ? postId : ""}`;
+
+        if (lastAppliedFocusKey.current === focusKey) return;
+
+        mapRef.current?.animateToRegion(
+            {
+                latitude,
+                longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+            },
+            1000
+        );
+
+        // Beim Sprung aus dem Feed nur zum Marker zoomen,
+        // aber kein Detail-Modal automatisch öffnen.
+        setModalVisible(false);
+
+        lastAppliedFocusKey.current = focusKey;
+    }, [focusLat, focusLng, focusPostId, focusTs, isInitialRegionResolved]);
 
 
 
