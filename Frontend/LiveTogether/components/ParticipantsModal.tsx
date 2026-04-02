@@ -8,7 +8,7 @@ Version: v1
 
 import { getAlLParticipantsOfPost } from "@/services/api";
 import * as SecureStore from "expo-secure-store";
-import { Users, UserX, X } from "lucide-react-native";
+import { Trash2, Users, UserX, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -32,10 +32,11 @@ type Participant = {
 type ParticipantsModalProps = {
     visible: boolean;
     postId: number;
+    activityOwnerId: number;
     onClose: () => void;
 };
 
-const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, onClose }) => {
+const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, activityOwnerId, onClose }) => {
     const [participants, setParticipants] = useState<Participant[]>([]);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -70,8 +71,15 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
         fetchParticipants();
     }, [visible, postId]);
 
+    const handleRemoveParticipant = (userId: number) => {
+        // Placeholder function - Backend-Endpunkt wird später implementiert
+        console.log(`Entfernen des Nutzers ${userId} aus der Aktivität ${postId}`);
+    };
+
     const renderParticipant = ({ item }: { item: Participant }) => {
         const isMe = currentUserId != null && item.user_id === currentUserId;
+        const isOwner = currentUserId != null && currentUserId === activityOwnerId;
+        const canRemove = isOwner && !isMe;
         const displayName = `${item.first_name} ${item.last_name}`;
 
         return (
@@ -82,6 +90,11 @@ const ParticipantsModal: React.FC<ParticipantsModalProps> = ({ visible, postId, 
                     <View style={styles.meBadge}>
                         <Text style={styles.meBadgeText}>Du</Text>
                     </View>
+                )}
+                {canRemove && (
+                    <TouchableOpacity onPress={() => handleRemoveParticipant(item.user_id)} style={styles.deleteButton}>
+                        <Trash2 size={20} color="#dc2626" />
+                    </TouchableOpacity>
                 )}
             </View>
         );
@@ -163,7 +176,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         paddingVertical: 8,
-        paddingHorizontal: 4,
+        paddingHorizontal: 12,
         borderRadius: 8,
         backgroundColor: "#f2f2f2",
     },
@@ -171,6 +184,10 @@ const styles = StyleSheet.create({
         backgroundColor: "#e8f1ff",
         borderWidth: 1,
         borderColor: "#bfdbfe",
+    },
+    deleteButton: {
+        marginLeft: "auto",
+        padding: 6,
     },
     participantName: {
         fontSize: 16,

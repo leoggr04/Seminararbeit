@@ -803,7 +803,7 @@ const Map = () => {
                                 selectedCategoryId === null && styles.categoryBubbleTextActive,
                             ]}
                         >
-                            ✨ Alle
+                            Alle
                         </Text>
                     </TouchableOpacity>
 
