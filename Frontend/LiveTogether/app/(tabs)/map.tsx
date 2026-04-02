@@ -107,6 +107,7 @@ const Map = () => {
     const [visibleRegion, setVisibleRegion] = useState<Region>(initialRegion);
     const now = new Date();
     const mapRef = React.useRef<MapView>(null);
+    const categoryScrollRef = React.useRef<ScrollView>(null);
     const lastAppliedFocusKey = React.useRef<string | null>(null);
     const lastVisibleRegionRef = React.useRef<Region>(initialRegion);
     const bubbleItemsRef = React.useRef<BubbleItem[]>([]);
@@ -706,6 +707,12 @@ const Map = () => {
         }
     }, [selectedCategoryId, visibleCategoryIds]);
 
+    useEffect(() => {
+        if (visibleActivityTypes.length === 0) {
+            categoryScrollRef.current?.scrollTo({ x: 0, animated: true });
+        }
+    }, [visibleActivityTypes]);
+
     const handleRegionChangeComplete = React.useCallback((region: Region) => {
         const previous = lastVisibleRegionRef.current;
 
@@ -778,6 +785,7 @@ const Map = () => {
             <View
                 style={{ marginTop: 50, paddingHorizontal: 16 }}>
                 <ScrollView
+                    ref={categoryScrollRef}
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.categoryRow}
