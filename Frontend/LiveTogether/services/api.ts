@@ -139,6 +139,9 @@ export const logoutUser = (token: string) =>
 export const getUserById = (id: string) =>
     api.get(`/users/${id}`);
 
+export const getUserByEmail = (email: string) =>
+    api.get(`/users/by-email?email=${encodeURIComponent(email)}`);
+
 // === PASSWORD RESET ===
 export const requestPasswordReset = (email: string) =>
     api.post("/users/request-reset", { email });
