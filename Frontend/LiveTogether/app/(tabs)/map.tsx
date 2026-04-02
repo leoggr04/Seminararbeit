@@ -6,6 +6,7 @@ import {
     getActivityTypes,
     getAllActivities,
     getAlLParticipantsOfPost,
+    getAllSelfActivities,
     joinActivity,
     leaveActivity
 } from "@/services/api";
@@ -37,6 +38,8 @@ const initialRegion = {
     latitudeDelta: 0.1,
     longitudeDelta: 0.1,
 };
+
+const MAX_OWN_ACTIVE_ACTIVITIES = 5;
 
 type ActivityTypeOption = {
     id: number;
@@ -197,6 +200,24 @@ const Map = () => {
 
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
     const [bubbleItems, setBubbleItems] = useState<BubbleItem[]>([]);
+    const [ownActiveActivitiesCount, setOwnActiveActivitiesCount] = useState(0);
+    const [limitModalVisible, setLimitModalVisible] = useState(false);
+
+    const refreshOwnActiveActivitiesCount = async () => {
+        try {
+            const ownActivities = await getAllSelfActivities();
+            const activeOwnActivities = Array.isArray(ownActivities)
+                ? ownActivities.filter((activity: ApiActivity) => new Date(activity.end_time) > new Date())
+                : [];
+
+            const count = activeOwnActivities.length;
+            setOwnActiveActivitiesCount(count);
+            return count;
+        } catch (err) {
+            console.error("Fehler beim Laden der eigenen Aktivitäten:", err);
+            return ownActiveActivitiesCount;
+        }
+    };
 
 // 1️⃣ Lade Aktivitätstypen und Marker gemeinsam
     useEffect(() => {
@@ -318,6 +339,8 @@ const Map = () => {
             if (Object.keys(activityTypesMap).length > 0) { // warte bis map da ist
                 loadMarkers();
             }
+
+            refreshOwnActiveActivitiesCount();
         }, [activityTypesMap]) // 👈 Dependency
     );
 
@@ -353,8 +376,16 @@ const Map = () => {
 
 
     // Öffnet Modal beim Klick auf die Map
-    const handleMapPress = (e: any) => {
+    const handleMapPress = async (e: any) => {
         const { latitude, longitude } = e.nativeEvent.coordinate;
+
+        const activeOwnActivitiesCount = await refreshOwnActiveActivitiesCount();
+
+        if (activeOwnActivitiesCount >= MAX_OWN_ACTIVE_ACTIVITIES) {
+            setLimitModalVisible(true);
+            return;
+        }
+
         setNewMarkerCoords({ latitude, longitude });
         setTitle("");
         setDescription("");
@@ -405,6 +436,7 @@ const Map = () => {
             ]);
 
             setModalVisible(false);
+            setOwnActiveActivitiesCount((prev) => prev + 1);
             Alert.alert("Gespeichert ✅", "Aktivität wurde erstellt!");
         } catch (err) {
             console.error("Fehler beim Speichern:", err);
@@ -939,6 +971,47 @@ const Map = () => {
                                 </TouchableOpacity>
                             </>
                         )}
+                    </View>
+                </View>
+            </Modal>
+
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={limitModalVisible}
+                onRequestClose={() => setLimitModalVisible(false)}
+            >
+                <View style={styles.modalBackground}>
+                    <View style={styles.modalContainer}>
+                        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                            <Text style={styles.modalTitle}>Eigene Aktivität</Text>
+                            <TouchableOpacity
+                                onPress={() => setLimitModalVisible(false)}
+                                style={{ padding: 4 }}
+                            >
+                                <Text style={{ fontSize: 20, fontWeight: "bold", color: "red" }}>✕</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.ownerHintBox}>
+                            <Text style={styles.ownerHintTitle}>Maximale Anzahl erreicht</Text>
+                            <Text style={styles.ownerHint}>
+                                Du hast bereits {ownActiveActivitiesCount} Aktivitäten geplant. Du kannst maximal {MAX_OWN_ACTIVE_ACTIVITIES} eigene Aktivitäten gleichzeitig anlegen.
+                            </Text>
+                        </View>
+
+                        <TouchableOpacity
+                            style={[styles.button, { backgroundColor: "#007bff", marginTop: 16 }]}
+                            onPress={() => {
+                                setLimitModalVisible(false);
+                                router.push("/(tabs)/feed");
+                            }}
+                        >
+                            <Text style={{ color: "white", fontWeight: "bold" }}>
+                                Zum Feed
+                            </Text>
+                        </TouchableOpacity>
+
                     </View>
                 </View>
             </Modal>
