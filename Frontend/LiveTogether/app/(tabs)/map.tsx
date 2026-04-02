@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Keyboard,
     Modal,
@@ -85,12 +86,25 @@ const Map = () => {
     const [userId, setUserId] = useState<number | null>(null);
     const [selectedMarker, setSelectedMarker] = useState<ActivityMarker | null>(null);
     const [isSelectedMarkerJoined, setIsSelectedMarkerJoined] = useState(false);
+    const [mapInitialRegion, setMapInitialRegion] = useState(initialRegion);
+    const [isInitialRegionResolved, setIsInitialRegionResolved] = useState(false);
+    const [hasLocationPermission, setHasLocationPermission] = useState(false);
     const now = new Date();
     const mapRef = React.useRef<MapView>(null);
 
     const requestLocationPermission = async () => {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const currentPermission = await Location.getForegroundPermissionsAsync();
+        let status = currentPermission.status;
+
         if (status !== "granted") {
+            const requestedPermission = await Location.requestForegroundPermissionsAsync();
+            status = requestedPermission.status;
+        }
+
+        const isGranted = status === "granted";
+        setHasLocationPermission(isGranted);
+
+        if (!isGranted) {
             Alert.alert("Berechtigung benötigt", "Die App benötigt Zugriff auf den Standort.");
             return false;
         }
@@ -98,7 +112,42 @@ const Map = () => {
     };
 
     useEffect(() => {
-        requestLocationPermission();
+        const resolveInitialRegion = async () => {
+            try {
+                const hasPermission = await requestLocationPermission();
+
+                if (!hasPermission) {
+                    setMapInitialRegion(initialRegion);
+                    return;
+                }
+
+                const providerStatus = await Location.getProviderStatusAsync();
+
+                if (!providerStatus.locationServicesEnabled) {
+                    setMapInitialRegion(initialRegion);
+                    return;
+                }
+
+                const location = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+
+                const { latitude, longitude } = location.coords;
+                setMapInitialRegion({
+                    latitude,
+                    longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                });
+            } catch (err) {
+                console.error("Fehler beim Initialisieren der Kartenposition:", err);
+                setMapInitialRegion(initialRegion);
+            } finally {
+                setIsInitialRegionResolved(true);
+            }
+        };
+
+        resolveInitialRegion();
     }, []);
 
 
@@ -445,36 +494,46 @@ const Map = () => {
             </TouchableOpacity>
 
 
-            <MapView
-                ref={mapRef}
-                style={StyleSheet.absoluteFill}
-                initialRegion={initialRegion}
-                showsUserLocation
-                showsMyLocationButton={false}
-                showsCompass={false}
-                showsPointsOfInterest
-                showsBuildings
-                onPress={(e) => {
-                    if(isSearchActive) {
-                        setIsSearchActive(false);
-                        setShowSuggestions(false);
-                        Keyboard.dismiss();
-                        return;
-                    }
-                    handleMapPress(e);
-                }}
-            >
-                {filteredMarkers.map((marker) => (
-                    <MarkerWithEmoji
-                        // stable key -> not changing due to filtering
-                        // if no stable key used, emoji falls back to default after applying filter
-                        key={marker.post_id?.toString() || `${marker.latitude}-${marker.longitude}`}
-                        marker={marker}
-                        onPress={() => handleMarkerPress(marker)}
-                    />
-                ))}
+            {!isInitialRegionResolved && (
+                <View style={styles.locationLoadingContainer}>
+                    <ActivityIndicator size="large" color="#007AFF" />
+                    <Text style={styles.locationLoadingText}>Standort wird geladen…</Text>
+                </View>
+            )}
 
-            </MapView>
+            {isInitialRegionResolved && (
+                <MapView
+                    key={hasLocationPermission ? "map-with-location" : "map-without-location"}
+                    ref={mapRef}
+                    style={StyleSheet.absoluteFill}
+                    initialRegion={mapInitialRegion}
+                    showsUserLocation={hasLocationPermission}
+                    showsMyLocationButton={false}
+                    showsCompass={false}
+                    showsPointsOfInterest
+                    showsBuildings
+                    onPress={(e) => {
+                        if(isSearchActive) {
+                            setIsSearchActive(false);
+                            setShowSuggestions(false);
+                            Keyboard.dismiss();
+                            return;
+                        }
+                        handleMapPress(e);
+                    }}
+                >
+                    {filteredMarkers.map((marker) => (
+                        <MarkerWithEmoji
+                            // stable key -> not changing due to filtering
+                            // if no stable key used, emoji falls back to default after applying filter
+                            key={marker.post_id?.toString() || `${marker.latitude}-${marker.longitude}`}
+                            marker={marker}
+                            onPress={() => handleMarkerPress(marker)}
+                        />
+                    ))}
+
+                </MapView>
+            )}
 
             {/* 🔍 Suchleiste */}
             <View
@@ -637,6 +696,18 @@ const Map = () => {
 };
 
 const styles = StyleSheet.create({
+    locationLoadingContainer: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: "center",
+        alignItems: "center",
+        backgroundColor: "white",
+    },
+    locationLoadingText: {
+        marginTop: 12,
+        fontSize: 15,
+        color: "#334155",
+        fontWeight: "600",
+    },
     modalBackground: {
         flex: 1,
         backgroundColor: "rgba(0,0,0,0.5)",

@@ -19,9 +19,13 @@
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/appstorev2.png"
       },
-      "permissions": ["ACCESS_FINE_LOCATION"],
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.LiveTogether"
     },
     "web": {
       "output": "static",
