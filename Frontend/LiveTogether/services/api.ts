@@ -2,6 +2,7 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 
 const API_BASE_URL = "https://217.154.6.104:9000/api";
+const WS_BASE_URL = API_BASE_URL.replace(/^http/, "ws").replace(/\/api$/, "");
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -268,3 +269,46 @@ export const getChatParticipants = async (chatId: number) => {
     const res = await api.get(`/chats/${chatId}/participants`);
     return res.data.data;
 }
+
+export const connectToChatUpdates = async (
+    chatId: number,
+    onEvent: (payload: any) => void
+) => {
+    const token = await getAuthToken();
+    const url = `${WS_BASE_URL}/ws/chats/${chatId}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const socket = new WebSocket(url);
+
+    socket.onmessage = (event) => {
+        try {
+            onEvent(JSON.parse(event.data));
+        } catch {
+            onEvent(event.data);
+        }
+    };
+
+    socket.onerror = (event) => {
+        console.log("[WS] chat socket error", event);
+    };
+
+    return socket;
+};
+
+export const connectToChatsUpdates = async (onEvent: (payload: any) => void) => {
+    const token = await getAuthToken();
+    const url = `${WS_BASE_URL}/ws/chats${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const socket = new WebSocket(url);
+
+    socket.onmessage = (event) => {
+        try {
+            onEvent(JSON.parse(event.data));
+        } catch {
+            onEvent(event.data);
+        }
+    };
+
+    socket.onerror = (event) => {
+        console.log("[WS] chats socket error", event);
+    };
+
+    return socket;
+};

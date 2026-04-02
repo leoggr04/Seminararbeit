@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
-import { createNewChat, getUserByEmail, listChats } from "@/services/api";
+import { connectToChatsUpdates, createNewChat, getUserByEmail, listChats } from "@/services/api";
 import { useUser } from "@/components/UserContext";
 
 interface Chat {
@@ -27,8 +27,10 @@ const Messages = () => {
     const [chatName, setChatName] = useState("");
     const [participantInput, setParticipantInput] = useState("");
     const [selectedParticipants, setSelectedParticipants] = useState<SelectedParticipant[]>([]);
+    const [refreshing, setRefreshing] = useState(false);
+    const chatsSocketRef = useRef<WebSocket | null>(null);
 
-    const fetchChats = async () => {
+    const fetchChats = useCallback(async () => {
         try {
             const data = await listChats(); // ruft /api/chats auf
             setChats(data); // speichert das Array in den State
@@ -37,11 +39,44 @@ const Messages = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchChats();
+        setRefreshing(false);
+    }, [fetchChats]);
 
     useEffect(() => {
         fetchChats();
-    }, []);
+    }, [fetchChats]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const setupSocket = async () => {
+            try {
+                const socket = await connectToChatsUpdates(() => {
+                    if (isMounted) {
+                        fetchChats();
+                    }
+                });
+                chatsSocketRef.current = socket;
+            } catch (error) {
+                console.log("[WS] Chats live update nicht verbunden:", error);
+            }
+        };
+
+        setupSocket();
+
+        return () => {
+            isMounted = false;
+            if (chatsSocketRef.current) {
+                chatsSocketRef.current.close();
+                chatsSocketRef.current = null;
+            }
+        };
+    }, [fetchChats]);
 
     const handleCreateChat = async () => {
         const participantIds = selectedParticipants.map((p) => p.id);
@@ -214,6 +249,8 @@ const Messages = () => {
                 keyExtractor={(item) => item.chat_id.toString()}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 20 }}
+                refreshing={refreshing}
+                onRefresh={onRefresh}
             />
         </View>
     );

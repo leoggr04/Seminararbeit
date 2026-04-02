@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     View,
     Text,
@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import {Stack, useLocalSearchParams} from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { listChatMessages, sendMessage, getChatParticipants, getUserById } from "@/services/api";
+import { connectToChatUpdates, listChatMessages, sendMessage, getChatParticipants, getUserById } from "@/services/api";
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {useRouter} from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -44,6 +44,7 @@ export default function ChatScreen() {
     const [input, setInput] = useState("");
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
     const [currentChatName , setCurrentChatName] = useState(chatName);
+    const chatSocketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
         const loadUserId = async () => {
@@ -54,21 +55,47 @@ export default function ChatScreen() {
         getChatTitle();
     }, []);
 
+    const fetchMessages = useCallback(async () => {
+        try {
+            const res = await listChatMessages(chatId);
+            const arr: Message[] = Array.isArray(res) ? res : res.data ?? [];
+            arr.sort((a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at));
+            setMessages(arr);
+        } catch (err) {
+            console.log("Fehler beim Laden der Nachrichten:", err);
+        } finally {
+            setLoading(false);
+        }
+    }, [chatId]);
+
     useEffect(() => {
-        const fetchMessages = async () => {
+        fetchMessages();
+    }, [fetchMessages]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const setupSocket = async () => {
             try {
-                const res = await listChatMessages(chatId);
-                const arr: Message[] = Array.isArray(res) ? res : res.data ?? [];
-                arr.sort((a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at));
-                setMessages(arr);
-            } catch (err) {
-                console.log("Fehler beim Laden der Nachrichten:", err);
-            } finally {
-                setLoading(false);
+                const socket = await connectToChatUpdates(chatId, () => {
+                    if (isMounted) fetchMessages();
+                });
+                chatSocketRef.current = socket;
+            } catch (error) {
+                console.log("[WS] Chat live update nicht verbunden:", error);
             }
         };
-        fetchMessages();
-    }, [chatId]);
+
+        setupSocket();
+
+        return () => {
+            isMounted = false;
+            if (chatSocketRef.current) {
+                chatSocketRef.current.close();
+                chatSocketRef.current = null;
+            }
+        };
+    }, [chatId, fetchMessages]);
 
     const getParticipants = () => {
         return getChatParticipants(chatId).then((res) => {
