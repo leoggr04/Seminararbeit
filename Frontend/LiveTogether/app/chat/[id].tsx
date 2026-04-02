@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     View,
     Text,
@@ -10,13 +10,13 @@ import {
     Platform,
     Keyboard,
     TouchableWithoutFeedback,
-    SafeAreaView,
 } from "react-native";
 import {Stack, useLocalSearchParams} from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import { listChatMessages, sendMessage, getChatParticipants, getUserById } from "@/services/api";
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {useRouter} from "expo-router";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Message {
     message_id: number;
@@ -37,7 +37,9 @@ export default function ChatScreen() {
     const chatId = Number(id);
     const chatName = typeof name === "string" ? name : "Chat";
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const [messages, setMessages] = useState<Message[]>([]);
+    const flatListRef = useRef<FlatList<Message>>(null);
     const [loading, setLoading] = useState(true);
     const [input, setInput] = useState("");
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
@@ -57,7 +59,7 @@ export default function ChatScreen() {
             try {
                 const res = await listChatMessages(chatId);
                 const arr: Message[] = Array.isArray(res) ? res : res.data ?? [];
-                arr.sort((a, b) => Date.parse(b.sent_at) - Date.parse(a.sent_at));
+                arr.sort((a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at));
                 setMessages(arr);
             } catch (err) {
                 console.log("Fehler beim Laden der Nachrichten:", err);
@@ -78,7 +80,7 @@ export default function ChatScreen() {
         if (!input.trim() || currentUserId === null) return;
         try {
             const newMsg = await sendMessage(chatId, input);
-            setMessages((prev) => [newMsg, ...prev]);
+            setMessages((prev) => [...prev, newMsg]);
             setInput("");
         } catch (err) {
             console.log("Fehler beim Senden:", err);
@@ -145,23 +147,25 @@ export default function ChatScreen() {
     return (
         <>
         <Stack.Screen options={{ headerShown: false }} />
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>
         {chatHeader()}
 
         <KeyboardAvoidingView
                 style={styles.container}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 95 : 95}
+            keyboardVerticalOffset={Platform.OS === "ios" ? insets.top : 0}
             >
                 {/* Schließt die Tastatur, wenn man außerhalb tippt */}
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                     <View style={{ flex: 1 }}>
                         <FlatList
+                            ref={flatListRef}
                             data={messages}
                             renderItem={renderItem}
                             keyExtractor={(item) => item.message_id.toString()}
-                            contentContainerStyle={{ padding: 10 }}
-                            inverted
+                            contentContainerStyle={styles.messagesContent}
+                            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                            onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
                         />
 
                         <View style={styles.inputContainer}>
@@ -185,7 +189,13 @@ export default function ChatScreen() {
 }
 
 const styles = StyleSheet.create({
+    safeArea: { flex: 1, backgroundColor: "#f8f9fa" },
     container: { flex: 1 },
+    messagesContent: {
+        flexGrow: 1,
+        justifyContent: "flex-end",
+        padding: 10,
+    },
     messageContainer: {
         maxWidth: "70%",
         padding: 10,
@@ -211,9 +221,11 @@ const styles = StyleSheet.create({
         backgroundColor: "#f0f0f0",
         borderRadius: 20,
         paddingHorizontal: 15,
-        paddingVertical: 12,
+        paddingVertical: 10,
         marginRight: 10,
         fontSize: 16,
+        minHeight: 44,
+        textAlignVertical: "center",
         maxHeight: 120, // verhindert zu großes Wachsen
     },
     sendButton: {
@@ -232,7 +244,6 @@ const styles = StyleSheet.create({
         backgroundColor: "#f8f9fa",
         borderBottomWidth: 1,
         borderBottomColor: "#ddd",
-        marginTop:22,
     },
 
     headerTitle: {

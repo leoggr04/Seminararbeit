@@ -6,6 +6,9 @@ const { authenticate } = require('../middleware/auth');
 // GET /api/users
 router.get('/', authenticate, userController.listUsers);
 
+// GET /api/users/by-email?email=<email>
+router.get('/by-email', authenticate, userController.getUserByEmail);
+
 // GET /api/users/:id
 router.get('/:id', authenticate, userController.getUser);
 

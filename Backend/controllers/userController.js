@@ -41,6 +41,51 @@ async function getUser(req, res) {
   }
 }
 
+async function getUserByEmail(req, res) {
+  const email = String(req.query.email || '').trim();
+  if (!email) {
+    return res.status(400).json({ success: false, error: 'email query parameter required' });
+  }
+
+  try {
+    const user = await User.getUserByEmail(email);
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    // Never expose password-related fields
+    const { user_id, first_name, last_name } = user;
+    return res.json({
+      success: true,
+      data: { user_id, first_name, last_name, email: user.email },
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Database error' });
+  }
+}
+
+/**
+ * @openapi
+ * /api/users/by-email:
+ *   get:
+ *     tags:
+ *       - users
+ *     summary: Get a user by email
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: email
+ *     responses:
+ *       200:
+ *         description: A user object
+ *       404:
+ *         description: Not found
+ */
+
 /**
  * @openapi
  * /api/users/{id}:
@@ -144,6 +189,7 @@ async function resetPassword(req, res) {
 module.exports = {
   listUsers,
   getUser,
+  getUserByEmail,
   requestPasswordReset,
   resetPassword,
 };
