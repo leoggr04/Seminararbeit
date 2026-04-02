@@ -69,7 +69,7 @@ async function handleUpgrade(req, socket, head) {
 
   const path = url.pathname;
 
-  if (path === '/ws/chats') {
+  if (path === '/api/ws/chats') {
     wss.handleUpgrade(req, socket, head, (ws) => {
       wss.emit('connection', ws, req);
       registerSocket(ws, { type: 'chats', userId: user.user_id });
@@ -78,7 +78,7 @@ async function handleUpgrade(req, socket, head) {
     return;
   }
 
-  const chatMatch = path.match(/^\/ws\/chats\/(\d+)$/);
+  const chatMatch = path.match(/^\/api\/ws\/chats\/(\d+)$/);
   if (chatMatch) {
     const chatId = parseInt(chatMatch[1], 10);
     if (Number.isNaN(chatId)) {
