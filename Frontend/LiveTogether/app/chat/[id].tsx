@@ -74,15 +74,33 @@ export default function ChatScreen() {
 
     useEffect(() => {
         let isMounted = true;
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+        let manuallyClosed = false;
 
         const setupSocket = async () => {
             try {
-                const socket = await connectToChatUpdates(chatId, () => {
-                    if (isMounted) fetchMessages();
+                const socket = await connectToChatUpdates(chatId, (event) => {
+                    if (!isMounted || !event || typeof event !== "object") return;
+                    if (event.type === "chat_updated") {
+                        fetchMessages();
+                    }
                 });
+
+                socket.onclose = () => {
+                    if (!isMounted || manuallyClosed) return;
+                    reconnectTimer = setTimeout(() => {
+                        setupSocket();
+                    }, 1500);
+                };
+
                 chatSocketRef.current = socket;
             } catch (error) {
                 console.log("[WS] Chat live update nicht verbunden:", error);
+                if (isMounted && !manuallyClosed) {
+                    reconnectTimer = setTimeout(() => {
+                        setupSocket();
+                    }, 2000);
+                }
             }
         };
 
@@ -90,6 +108,11 @@ export default function ChatScreen() {
 
         return () => {
             isMounted = false;
+            manuallyClosed = true;
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
             if (chatSocketRef.current) {
                 chatSocketRef.current.close();
                 chatSocketRef.current = null;

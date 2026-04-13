@@ -53,17 +53,33 @@ const Messages = () => {
 
     useEffect(() => {
         let isMounted = true;
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+        let manuallyClosed = false;
 
         const setupSocket = async () => {
             try {
-                const socket = await connectToChatsUpdates(() => {
-                    if (isMounted) {
+                const socket = await connectToChatsUpdates((event) => {
+                    if (!isMounted || !event || typeof event !== "object") return;
+                    if (event.type === "chats_updated") {
                         fetchChats();
                     }
                 });
+
+                socket.onclose = () => {
+                    if (!isMounted || manuallyClosed) return;
+                    reconnectTimer = setTimeout(() => {
+                        setupSocket();
+                    }, 1500);
+                };
+
                 chatsSocketRef.current = socket;
             } catch (error) {
                 console.log("[WS] Chats live update nicht verbunden:", error);
+                if (isMounted && !manuallyClosed) {
+                    reconnectTimer = setTimeout(() => {
+                        setupSocket();
+                    }, 2000);
+                }
             }
         };
 
@@ -71,6 +87,11 @@ const Messages = () => {
 
         return () => {
             isMounted = false;
+            manuallyClosed = true;
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
             if (chatsSocketRef.current) {
                 chatsSocketRef.current.close();
                 chatsSocketRef.current = null;

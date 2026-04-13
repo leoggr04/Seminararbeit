@@ -69,11 +69,13 @@ async function createChat(req, res) {
 async function addParticipant(req, res) {
   const chatId = parseInt(req.params.chatId, 10);
   const { userId } = req.body || {};
+  const requesterId = req.user.user_id;
   if (Number.isNaN(chatId) || !userId) return res.status(400).json({ error: 'invalid input' });
   try {
-    const p = await ChatService.addParticipant(chatId, userId);
+    const p = await ChatService.addParticipant(chatId, requesterId, userId);
     return res.status(201).json(p);
   } catch (err) {
+    if (err.message === 'forbidden') return res.status(403).json({ error: 'not a participant' });
     console.error(err);
     return res.status(500).json({ error: 'server_error' });
   }
@@ -116,11 +118,13 @@ async function addParticipant(req, res) {
 async function removeParticipant(req, res) {
   const chatId = parseInt(req.params.chatId, 10);
   const userId = parseInt(req.params.userId, 10);
+  const requesterId = req.user.user_id;
   if (Number.isNaN(chatId) || Number.isNaN(userId)) return res.status(400).json({ error: 'invalid input' });
   try {
-    const p = await ChatService.removeParticipant(chatId, userId);
+    const p = await ChatService.removeParticipant(chatId, requesterId, userId);
     return res.json({ success: true, removed: p });
   } catch (err) {
+    if (err.message === 'forbidden') return res.status(403).json({ error: 'not a participant' });
     console.error(err);
     return res.status(500).json({ error: 'server_error' });
   }
@@ -153,11 +157,13 @@ async function removeParticipant(req, res) {
 
 async function listParticipants(req, res) {
   const chatId = parseInt(req.params.chatId, 10);
+  const requesterId = req.user.user_id;
   if (Number.isNaN(chatId)) return res.status(400).json({ error: 'invalid input' });
   try {
-    const list = await ChatService.listParticipants(chatId);
+    const list = await ChatService.listParticipants(chatId, requesterId);
     return res.json({ data: list });
   } catch (err) {
+    if (err.message === 'forbidden') return res.status(403).json({ error: 'not a participant' });
     console.error(err);
     return res.status(500).json({ error: 'server_error' });
   }
@@ -286,11 +292,13 @@ async function sendMessage(req, res) {
 
 async function listMessages(req, res) {
   const chatId = parseInt(req.params.chatId, 10);
+  const requesterId = req.user.user_id;
   if (Number.isNaN(chatId)) return res.status(400).json({ error: 'invalid input' });
   try {
-    const messages = await ChatService.listMessages(chatId);
+    const messages = await ChatService.listMessages(chatId, requesterId);
     return res.json({ data: messages });
   } catch (err) {
+    if (err.message === 'forbidden') return res.status(403).json({ error: 'not a participant' });
     console.error(err);
     return res.status(500).json({ error: 'server_error' });
   }
