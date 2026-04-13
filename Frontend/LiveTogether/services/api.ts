@@ -3,6 +3,8 @@ import * as SecureStore from "expo-secure-store";
 
 const API_BASE_URL = "https://217.154.6.104:9000/api";
 const WS_BASE_URL = API_BASE_URL.replace(/^http/, "ws");
+const WS_ORIGIN = WS_BASE_URL.replace(/\/api\/?$/, "");
+let wsPathPrefix = "/api/ws";
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -24,6 +26,76 @@ const getRefreshToken = async () => SecureStore.getItemAsync("refreshToken");
 const saveTokens = async (accessToken: string, refreshToken: string) => {
     await SecureStore.setItemAsync("authToken", accessToken);
     await SecureStore.setItemAsync("refreshToken", refreshToken);
+};
+
+const parseJwtPayload = (token: string) => {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+
+        const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+        const json = atob(padded);
+        return JSON.parse(json);
+    } catch {
+        return null;
+    }
+};
+
+const isTokenNearExpiry = (token: string, skewSeconds = 30) => {
+    const payload = parseJwtPayload(token);
+    if (!payload || typeof payload.exp !== "number") return true;
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp <= now + skewSeconds;
+};
+
+let wsRefreshInFlight: Promise<string | null> | null = null;
+
+const buildWsUrl = (path: string, token: string | null) => {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    return `${WS_ORIGIN}${wsPathPrefix}${cleanPath}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+};
+
+const maybeFlipWsPrefixOn404 = (event: { reason?: string } | undefined) => {
+    const reason = event?.reason || "";
+    if (!reason.includes("404")) return;
+    wsPathPrefix = wsPathPrefix === "/api/ws" ? "/ws" : "/api/ws";
+    console.log("[WS] switched websocket prefix", wsPathPrefix);
+};
+
+const getValidWsAccessToken = async () => {
+    const currentToken = await getAuthToken();
+    if (currentToken && !isTokenNearExpiry(currentToken)) {
+        return currentToken;
+    }
+
+    if (wsRefreshInFlight) {
+        return wsRefreshInFlight;
+    }
+
+    wsRefreshInFlight = (async () => {
+        try {
+            const refreshToken = await getRefreshToken();
+            if (!refreshToken) return null;
+
+            const res = await axios.post(`${API_BASE_URL}/auth/refresh`, { refreshToken });
+            const newAccessToken = res.data?.accessToken;
+            const newRefreshToken = res.data?.refreshToken;
+            if (!newAccessToken || !newRefreshToken) return null;
+
+            await saveTokens(newAccessToken, newRefreshToken);
+            api.defaults.headers.common["Authorization"] = `Bearer ${newAccessToken}`;
+            return newAccessToken;
+        } catch (error) {
+            console.log("[WS] Token refresh failed", error);
+            await clearStoredAuth();
+            return null;
+        } finally {
+            wsRefreshInFlight = null;
+        }
+    })();
+
+    return wsRefreshInFlight;
 };
 
 export const clearStoredAuth = async () => {
@@ -274,13 +346,21 @@ export const connectToChatUpdates = async (
     chatId: number,
     onEvent: (payload: any) => void
 ) => {
-    const token = await getAuthToken();
-    const url = `${WS_BASE_URL}/ws/chats/${chatId}${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const token = await getValidWsAccessToken();
+    const url = buildWsUrl(`/chats/${chatId}`, token);
     const socket = new WebSocket(url);
+
+    socket.onopen = () => {
+        console.log("[WS] chat socket connected", { chatId, url });
+    };
 
     socket.onmessage = (event) => {
         try {
-            onEvent(JSON.parse(event.data));
+            const parsed = JSON.parse(event.data);
+            if (parsed?.type === "connected") {
+                console.log("[WS] chat handshake confirmed", parsed);
+            }
+            onEvent(parsed);
         } catch {
             onEvent(event.data);
         }
@@ -290,17 +370,29 @@ export const connectToChatUpdates = async (
         console.log("[WS] chat socket error", event);
     };
 
+    socket.onclose = (event) => {
+        maybeFlipWsPrefixOn404(event);
+    };
+
     return socket;
 };
 
 export const connectToChatsUpdates = async (onEvent: (payload: any) => void) => {
-    const token = await getAuthToken();
-    const url = `${WS_BASE_URL}/ws/chats${token ? `?token=${encodeURIComponent(token)}` : ""}`;
+    const token = await getValidWsAccessToken();
+    const url = buildWsUrl("/chats", token);
     const socket = new WebSocket(url);
+
+    socket.onopen = () => {
+        console.log("[WS] chats socket connected", { url });
+    };
 
     socket.onmessage = (event) => {
         try {
-            onEvent(JSON.parse(event.data));
+            const parsed = JSON.parse(event.data);
+            if (parsed?.type === "connected") {
+                console.log("[WS] chats handshake confirmed", parsed);
+            }
+            onEvent(parsed);
         } catch {
             onEvent(event.data);
         }
@@ -308,6 +400,10 @@ export const connectToChatsUpdates = async (onEvent: (payload: any) => void) => 
 
     socket.onerror = (event) => {
         console.log("[WS] chats socket error", event);
+    };
+
+    socket.onclose = (event) => {
+        maybeFlipWsPrefixOn404(event);
     };
 
     return socket;

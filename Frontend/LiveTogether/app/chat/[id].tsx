@@ -86,7 +86,14 @@ export default function ChatScreen() {
                     }
                 });
 
-                socket.onclose = () => {
+                const previousOnClose = socket.onclose;
+
+                socket.onclose = (event) => {
+                    if (previousOnClose) previousOnClose.call(socket, event);
+                    console.log("[WS] chat socket closed", {
+                        code: event?.code,
+                        reason: event?.reason,
+                    });
                     if (!isMounted || manuallyClosed) return;
                     reconnectTimer = setTimeout(() => {
                         setupSocket();
