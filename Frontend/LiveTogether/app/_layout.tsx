@@ -27,10 +27,6 @@ export default function RootLayout() {
               }}
           />
           <Stack.Screen
-              name="movies/[id]"
-              options={{ headerShown: false }}
-          />
-          <Stack.Screen
               name="signup"
               options={{
                   headerShown: false,
