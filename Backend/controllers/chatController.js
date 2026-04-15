@@ -34,8 +34,9 @@ const ChatService = require('../services/chatService');
  */
 async function createChat(req, res) {
   const { participantIds, chat_name } = req.body || {};
+  const creatorId = req.user.user_id;
   try {
-    const chat = await ChatService.createChat(participantIds || [], chat_name || null);
+    const chat = await ChatService.createChat(creatorId, participantIds || [], chat_name || null);
     return res.status(201).json(chat);
   } catch (err) {
     console.error(err);
@@ -125,6 +126,7 @@ async function removeParticipant(req, res) {
     return res.json({ success: true, removed: p });
   } catch (err) {
     if (err.message === 'forbidden') return res.status(403).json({ error: 'not a participant' });
+    if (err.message === 'owner_only') return res.status(403).json({ error: 'only owner can remove others' });
     console.error(err);
     return res.status(500).json({ error: 'server_error' });
   }

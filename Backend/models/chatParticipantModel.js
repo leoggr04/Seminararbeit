@@ -24,4 +24,37 @@ async function isParticipant(chatId, userId) {
   return res.rowCount > 0;
 }
 
-module.exports = { addParticipant, removeParticipant, listParticipants, isParticipant };
+async function getParticipant(chatId, userId) {
+  const q = 'SELECT chat_id, user_id, joined_at, role FROM chat_participants WHERE chat_id = $1 AND user_id = $2 LIMIT 1';
+  const res = await db.query(q, [chatId, userId]);
+  return res.rows[0] || null;
+}
+
+async function getOwner(chatId) {
+  const q = 'SELECT chat_id, user_id, joined_at, role FROM chat_participants WHERE chat_id = $1 AND role = $2 ORDER BY joined_at ASC LIMIT 1';
+  const res = await db.query(q, [chatId, 'owner']);
+  return res.rows[0] || null;
+}
+
+async function getEarliestParticipant(chatId) {
+  const q = 'SELECT chat_id, user_id, joined_at, role FROM chat_participants WHERE chat_id = $1 ORDER BY joined_at ASC LIMIT 1';
+  const res = await db.query(q, [chatId]);
+  return res.rows[0] || null;
+}
+
+async function setParticipantRole(chatId, userId, role) {
+  const q = 'UPDATE chat_participants SET role = $3 WHERE chat_id = $1 AND user_id = $2 RETURNING chat_id, user_id, joined_at, role';
+  const res = await db.query(q, [chatId, userId, role]);
+  return res.rows[0] || null;
+}
+
+module.exports = {
+  addParticipant,
+  removeParticipant,
+  listParticipants,
+  isParticipant,
+  getParticipant,
+  getOwner,
+  getEarliestParticipant,
+  setParticipantRole,
+};
