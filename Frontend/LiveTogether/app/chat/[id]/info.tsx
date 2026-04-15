@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { listChatParticipants, deleteChatParticipant, addParticipantToChat, getUserByEmail } from "@/services/api";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as SecureStore from "expo-secure-store";
 
 interface Participant {
     id?: number;
@@ -32,6 +33,8 @@ export default function ChatInfoScreen() {
     const router = useRouter();
     
     const [participants, setParticipants] = useState<Participant[]>([]);
+    const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+    const [isCurrentUserOwner, setIsCurrentUserOwner] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isModalVisible, setIsModalVisible] = useState(false);
     const [userEmailInput, setUserEmailInput] = useState("");
@@ -48,6 +51,13 @@ export default function ChatInfoScreen() {
                 name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unbekannt',
             }));
             setParticipants(participantsArray);
+
+            if (currentUserId != null) {
+                const me = participantsArray.find((p: any) => Number(p.id) === Number(currentUserId));
+                setIsCurrentUserOwner(me?.role === "owner");
+            } else {
+                setIsCurrentUserOwner(false);
+            }
         } catch (err) {
             console.log("Fehler beim Laden der Teilnehmer:", err);
         } finally {
@@ -56,8 +66,18 @@ export default function ChatInfoScreen() {
     };
 
     useEffect(() => {
+        const loadCurrentUser = async () => {
+            const storedId = await SecureStore.getItemAsync("userId");
+            if (storedId) {
+                setCurrentUserId(Number(storedId));
+            }
+        };
+        loadCurrentUser();
+    }, []);
+
+    useEffect(() => {
         fetchParticipants();
-    }, [chatId]);
+    }, [chatId, currentUserId]);
 
     const handleAddParticipant = async () => {
         const email = userEmailInput.trim().toLowerCase();
@@ -92,12 +112,43 @@ export default function ChatInfoScreen() {
     };
 
     const handleDeleteParticipant = async (userId: number) => {
+        if (!isCurrentUserOwner) {
+            Alert.alert("Keine Berechtigung", "Nur der Chat-Ersteller darf andere Teilnehmer entfernen.");
+            return;
+        }
+
         try {
             await deleteChatParticipant(chatId, userId);
             await fetchParticipants();
         } catch (err) {
             console.log("Fehler beim Löschen des Teilnehmers:", err);
+            Alert.alert("Fehler", "Teilnehmer konnte nicht entfernt werden.");
         }
+    };
+
+    const handleLeaveChat = async () => {
+        if (currentUserId == null) return;
+
+        Alert.alert(
+            "Chat verlassen",
+            "Möchtest du diesen Chat wirklich verlassen?",
+            [
+                { text: "Abbrechen", style: "cancel" },
+                {
+                    text: "Verlassen",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await deleteChatParticipant(chatId, currentUserId);
+                            router.replace("/(tabs)/messages");
+                        } catch (err) {
+                            console.log("Fehler beim Verlassen des Chats:", err);
+                            Alert.alert("Fehler", "Du konntest den Chat nicht verlassen.");
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const renderParticipantItem = ({ item }: { item: Participant }) => {
@@ -111,8 +162,13 @@ export default function ChatInfoScreen() {
                 <TouchableOpacity
                     style={styles.deleteButton}
                     onPress={() => handleDeleteParticipant(item.id!)}
+                    disabled={!isCurrentUserOwner || Number(item.id) === Number(currentUserId)}
                 >
-                    <Ionicons name="trash" size={20} color="#ff4444" />
+                    <Ionicons
+                        name="trash"
+                        size={20}
+                        color={!isCurrentUserOwner || Number(item.id) === Number(currentUserId) ? "#bbb" : "#ff4444"}
+                    />
                 </TouchableOpacity>
             </View>
         );
@@ -136,8 +192,9 @@ export default function ChatInfoScreen() {
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>{chatName} - Info</Text>
                 <TouchableOpacity
-                    style={styles.addButton}
+                    style={[styles.addButton, !isCurrentUserOwner && styles.disabledButton]}
                     onPress={() => setIsModalVisible(true)}
+                    disabled={!isCurrentUserOwner}
                 >
                     <Ionicons name="add" size={24} color="#fff" />
                 </TouchableOpacity>
@@ -153,6 +210,12 @@ export default function ChatInfoScreen() {
                     keyExtractor={(item) => String(item?.id || Math.random())}
                     scrollEnabled={false}
                 />
+            </View>
+
+            <View style={styles.bottomActions}>
+                <TouchableOpacity style={styles.leaveButton} onPress={handleLeaveChat}>
+                    <Text style={styles.leaveButtonText}>Chat verlassen</Text>
+                </TouchableOpacity>
             </View>
 
             {/* Add Participant Modal */}
@@ -228,6 +291,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
+    disabledButton: {
+        backgroundColor: "#9bbef0",
+    },
     section: {
         padding: 15,
     },
@@ -259,6 +325,22 @@ const styles = StyleSheet.create({
     },
     deleteButton: {
         paddingHorizontal: 10,
+    },
+    bottomActions: {
+        marginTop: "auto",
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+    },
+    leaveButton: {
+        backgroundColor: "#ff4d4f",
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: "center",
+    },
+    leaveButtonText: {
+        color: "#fff",
+        fontWeight: "700",
+        fontSize: 16,
     },
     modalBackdrop: {
         flex: 1,

@@ -9,12 +9,28 @@ async function ensureParticipantOrThrow(chatId, userId) {
   if (!isPart) throw new Error('forbidden');
 }
 
-async function createChat(participantIds = [], chatName = null) {
+async function ensureOwnerExists(chatId) {
+  const owner = await ChatParticipant.getOwner(chatId);
+  if (owner) return owner;
+
+  const fallback = await ChatParticipant.getEarliestParticipant(chatId);
+  if (!fallback) return null;
+  return ChatParticipant.setParticipantRole(chatId, fallback.user_id, 'owner');
+}
+
+async function createChat(creatorId, participantIds = [], chatName = null) {
   const chat = await Chat.createChat(chatName);
   const chatId = chat.chat_id;
-  for (const uid of participantIds) {
-    await ChatParticipant.addParticipant(chatId, uid);
+
+  await ChatParticipant.addParticipant(chatId, creatorId, 'owner');
+
+  const uniqueParticipants = new Set(participantIds || []);
+  uniqueParticipants.delete(creatorId);
+
+  for (const uid of uniqueParticipants) {
+    await ChatParticipant.addParticipant(chatId, uid, 'member');
   }
+
   broadcastChatsUpdate({ action: 'chat_created', chatId, chatName });
   return chat;
 }
@@ -28,7 +44,22 @@ async function addParticipant(chatId, requesterId, userId) {
 
 async function removeParticipant(chatId, requesterId, userId) {
   await ensureParticipantOrThrow(chatId, requesterId);
+
+  const requester = await ChatParticipant.getParticipant(chatId, requesterId);
+  const isSelfLeave = requesterId === userId;
+  if (!isSelfLeave && requester?.role !== 'owner') {
+    throw new Error('owner_only');
+  }
+
   const result = await ChatParticipant.removeParticipant(chatId, userId);
+
+  if (result?.role === 'owner') {
+    const nextOwner = await ensureOwnerExists(chatId);
+    if (nextOwner) {
+      broadcastChatUpdate(chatId, { action: 'owner_changed', userId: nextOwner.user_id });
+    }
+  }
+
   broadcastChatUpdate(chatId, { action: 'participant_removed', userId });
   return result;
 }
