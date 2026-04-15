@@ -416,14 +416,15 @@ const Map = () => {
             };
 
             const savedActivity = await createActivity(activityPost);
+            const savedPostId = Number(savedActivity?.post_id ?? savedActivity?.id);
 
             setMarkers(prev => [
                 ...prev,
                 {
-                    post_id: savedActivity.id,
+                    post_id: savedPostId,
                     activity_type_id: selectedActivityType.id,
-                    latitude: savedActivity.latitude,
-                    longitude: savedActivity.longitude,
+                    latitude: Number(savedActivity.latitude),
+                    longitude: Number(savedActivity.longitude),
                     activityTypeName: selectedActivityType.name,
                     title: selectedActivityType.name,
                     description: savedActivity.description,
@@ -440,7 +441,8 @@ const Map = () => {
             setOwnActiveActivitiesCount((prev) => prev + 1);
             Alert.alert("Gespeichert ✅", "Aktivität wurde erstellt!");
         } catch (err) {
-            console.error("Fehler beim Speichern:", err);
+            const errorData = (err as any)?.response?.data || err;
+            console.error("Fehler beim Speichern:", errorData);
             Alert.alert("Fehler", "Aktivität konnte nicht erstellt werden.");
         }
     };

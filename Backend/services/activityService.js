@@ -20,9 +20,9 @@ async function createPost(data) {
     throw new Error('post_create_failed');
   }
 
-  const chatName = data.description?.trim() || `Activity ${post.post_id}`;
+  const chatName = `Activity: ${(data.description || '').trim() || 'Activity'} (${post.post_id})`;
   console.log('[Activity] Creating chat with name:', chatName, 'for user:', data.user_id);
-  const chat = await ChatService.createChat([data.user_id], chatName);
+  const chat = await ChatService.createChat(data.user_id, [data.user_id], chatName);
 
   if (!chat || !chat.chat_id) {
     throw new Error('chat_create_failed');
@@ -67,7 +67,7 @@ async function joinPost(postId, userId) {
     const chats = await ChatService.listChatsForUser(post.user_id);
     const activityChat = chats.find((c) => c.chat_name && c.chat_name.includes(`(${postId})`) && c.chat_name.startsWith('Activity:'));
     if (activityChat) {
-      await ChatService.addParticipant(activityChat.chat_id, userId);
+      await ChatService.addParticipant(activityChat.chat_id, post.user_id, userId);
     }
   } catch (err) {
     console.error('Error adding user to activity chat:', err);
@@ -86,7 +86,7 @@ async function leavePost(postId, userId) {
     const chats = await ChatService.listChatsForUser(post.user_id);
     const activityChat = chats.find((c) => c.chat_name && c.chat_name.includes(`(${postId})`) && c.chat_name.startsWith('Activity:'));
     if (activityChat) {
-      await ChatService.removeParticipant(activityChat.chat_id, userId);
+      await ChatService.removeParticipant(activityChat.chat_id, userId, userId);
     }
   } catch (err) {
     console.error('Error removing user from activity chat:', err);
@@ -111,7 +111,7 @@ async function removeParticipant(postId, actorUserId, participantUserId) {
     const chats = await ChatService.listChatsForUser(post.user_id);
     const activityChat = chats.find((c) => c.chat_name && c.chat_name.includes(`(${postId})`) && c.chat_name.startsWith('Activity:'));
     if (activityChat) {
-      await ChatService.removeParticipant(activityChat.chat_id, participantUserId);
+      await ChatService.removeParticipant(activityChat.chat_id, actorUserId, participantUserId);
     }
   } catch (err) {
     console.error('Error removing user from activity chat:', err);
