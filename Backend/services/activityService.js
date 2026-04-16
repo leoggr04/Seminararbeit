@@ -2,6 +2,7 @@ const ActivityPost = require('../models/activityPostModel');
 const ActivityType = require('../models/activityTypeModel');
 const Participants = require('../models/participantsModel');
 const ChatService = require('./chatService');
+const DashboardService = require('./dashboardService');
 
 async function createType(name, icon_url) {
   return ActivityType.createActivityType(name, icon_url);
@@ -20,9 +21,23 @@ async function createPost(data) {
     throw new Error('post_create_failed');
   }
 
+  await DashboardService.recordEvent({
+    userId: data.user_id,
+    eventType: 'activity_created',
+    entityType: 'activity_post',
+    entityId: post.post_id,
+    metadata: {
+      activity_type_id: data.activity_type_id,
+      description: data.description || '',
+    },
+  });
+
   const chatName = `Activity: ${(data.description || '').trim() || 'Activity'} (${post.post_id})`;
   console.log('[Activity] Creating chat with name:', chatName, 'for user:', data.user_id);
-  const chat = await ChatService.createChat(data.user_id, [data.user_id], chatName);
+  const chat = await ChatService.createChat(data.user_id, [data.user_id], chatName, {
+    source: 'activity',
+    sourceId: post.post_id,
+  });
 
   if (!chat || !chat.chat_id) {
     throw new Error('chat_create_failed');
@@ -60,6 +75,16 @@ async function joinPost(postId, userId) {
   if (!post) throw new Error('not_found');
   if (post.user_id === userId) throw new Error('owner_cannot_join');
   const added = await Participants.addParticipant(postId, userId);
+
+  await DashboardService.recordEvent({
+    userId,
+    eventType: 'activity_joined',
+    entityType: 'activity_post',
+    entityId: postId,
+    metadata: {
+      owner_user_id: post.user_id,
+    },
+  });
   
   // Also add to associated chat
   try {
@@ -80,6 +105,16 @@ async function leavePost(postId, userId) {
   const post = await ActivityPost.getActivityPostById(postId);
   if (!post) throw new Error('not_found');
   const removed = await Participants.removeParticipant(postId, userId);
+
+  await DashboardService.recordEvent({
+    userId,
+    eventType: 'activity_left',
+    entityType: 'activity_post',
+    entityId: postId,
+    metadata: {
+      owner_user_id: post.user_id,
+    },
+  });
   
   // Also remove from associated chat
   try {
@@ -105,6 +140,16 @@ async function removeParticipant(postId, actorUserId, participantUserId) {
   if (!isParticipant) throw new Error('participant_not_found');
 
   const removed = await Participants.removeParticipant(postId, participantUserId);
+
+  await DashboardService.recordEvent({
+    userId: actorUserId,
+    eventType: 'activity_participant_removed',
+    entityType: 'activity_post',
+    entityId: postId,
+    metadata: {
+      removed_user_id: participantUserId,
+    },
+  });
   
   // Also remove from associated chat
   try {

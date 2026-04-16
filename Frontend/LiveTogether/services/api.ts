@@ -299,6 +299,34 @@ export const removeParticipantFromActivity = async (postId:number, userId:number
     return res.data;
 }
 
+//=======================================================================
+//  dashboard data access
+//=======================================================================
+export const getDashboardSummary = async (days: number = 30) => {
+    const res = await api.get(`/dashboard/summary?days=${days}`);
+    return res.data.data;
+};
+
+export const getDashboardEvents = async (params?: {
+    limit?: number;
+    offset?: number;
+    eventType?: string;
+    from?: string;
+    to?: string;
+}) => {
+    const search = new URLSearchParams();
+
+    if (params?.limit != null) search.set("limit", String(params.limit));
+    if (params?.offset != null) search.set("offset", String(params.offset));
+    if (params?.eventType) search.set("eventType", params.eventType);
+    if (params?.from) search.set("from", params.from);
+    if (params?.to) search.set("to", params.to);
+
+    const query = search.toString();
+    const res = await api.get(`/dashboard/events${query ? `?${query}` : ""}`);
+    return res.data.data;
+};
+
 //=========================================================================
 //  chat
 //=========================================================================
