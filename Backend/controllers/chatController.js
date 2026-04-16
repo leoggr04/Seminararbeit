@@ -306,6 +306,20 @@ async function listMessages(req, res) {
   }
 }
 
+async function markChatRead(req, res) {
+  const chatId = parseInt(req.params.chatId, 10);
+  const requesterId = req.user.user_id;
+  if (Number.isNaN(chatId)) return res.status(400).json({ error: 'invalid input' });
+  try {
+    const participant = await ChatService.markChatRead(chatId, requesterId);
+    return res.json({ data: participant });
+  } catch (err) {
+    if (err.message === 'forbidden') return res.status(403).json({ error: 'not a participant' });
+    console.error(err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+}
+
 module.exports = {
   createChat,
   addParticipant,
@@ -314,4 +328,5 @@ module.exports = {
   listChatsForUser,
   sendMessage,
   listMessages,
+  markChatRead,
 };

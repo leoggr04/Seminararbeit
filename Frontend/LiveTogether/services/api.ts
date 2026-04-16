@@ -337,6 +337,11 @@ export const listChatMessages = async(chatId:number) =>{
     return res.data.data;
 }
 
+export const markChatAsRead = async (chatId: number) => {
+    const res = await api.post(`/chats/${chatId}/read`);
+    return res.data.data;
+};
+
 export const getChatParticipants = async (chatId: number) => {
     const res = await api.get(`/chats/${chatId}/participants`);
     return res.data.data;

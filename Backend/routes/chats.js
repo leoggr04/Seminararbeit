@@ -17,5 +17,6 @@ router.get('/:chatId/participants', authenticate, ChatController.listParticipant
 // Messages
 router.get('/:chatId/messages', authenticate, ChatController.listMessages);
 router.post('/:chatId/messages', authenticate, ChatController.sendMessage);
+router.post('/:chatId/read', authenticate, ChatController.markChatRead);
 
 module.exports = router;

@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import {Stack, useLocalSearchParams} from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import { connectToChatUpdates, listChatMessages, sendMessage, getChatParticipants, getUserById } from "@/services/api";
+import { connectToChatUpdates, listChatMessages, markChatAsRead, sendMessage, getChatParticipants, getUserById } from "@/services/api";
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {useRouter} from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -61,6 +61,7 @@ export default function ChatScreen() {
             const arr: Message[] = Array.isArray(res) ? res : res.data ?? [];
             arr.sort((a, b) => Date.parse(a.sent_at) - Date.parse(b.sent_at));
             setMessages(arr);
+            await markChatAsRead(chatId);
         } catch (err) {
             console.log("Fehler beim Laden der Nachrichten:", err);
         } finally {
@@ -71,6 +72,14 @@ export default function ChatScreen() {
     useEffect(() => {
         fetchMessages();
     }, [fetchMessages]);
+
+    useEffect(() => {
+        if (chatId) {
+            markChatAsRead(chatId).catch((err) => {
+                console.log("Fehler beim Markieren als gelesen:", err);
+            });
+        }
+    }, [chatId]);
 
     useEffect(() => {
         let isMounted = true;

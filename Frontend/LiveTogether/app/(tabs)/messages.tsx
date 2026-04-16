@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { connectToChatsUpdates, createNewChat, getUserByEmail, listChats } from "@/services/api";
 import { useUser } from "@/components/UserContext";
 
@@ -10,6 +11,7 @@ interface Chat {
     // Optional: falls dein Backend auch Teilnehmer zurückgibt
     chat_name?: string;
     avatar?: string;
+    has_unread?: boolean;
 }
 
 interface SelectedParticipant {
@@ -50,6 +52,12 @@ const Messages = () => {
     useEffect(() => {
         fetchChats();
     }, [fetchChats]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchChats();
+        }, [fetchChats])
+    );
 
     useEffect(() => {
         let isMounted = true;
@@ -176,7 +184,10 @@ const Messages = () => {
             >
                 <View style={styles.chatContent}>
                     <View style={styles.chatHeader}>
-                        <Text style={styles.chatName}>{item.chat_name || `Chat ${item.chat_id}`}</Text>
+                        <View style={styles.chatNameRow}>
+                            {item.has_unread ? <View style={styles.unreadDot} /> : null}
+                            <Text style={styles.chatName}>{item.chat_name || `Chat ${item.chat_id}`}</Text>
+                        </View>
                         <Text style={styles.chatTime}>{new Date(item.created_at).toLocaleDateString()}</Text>
                     </View>
                     <Text style={styles.chatMessage} numberOfLines={1}>
@@ -348,7 +359,14 @@ const styles = StyleSheet.create({
     chatItem: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 16, marginBottom: 12, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 3 },
     chatContent: { flex: 1, borderBottomColor: "#eee" },
     chatHeader: { flexDirection: "row", justifyContent: "space-between" },
+    chatNameRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
     chatName: { fontSize: 18, fontWeight: "600" },
     chatTime: { fontSize: 14, color: "#666" },
     chatMessage: { fontSize: 15, color: "#888", marginTop: 2 },
+    unreadDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: "#ff3b30",
+    },
 });

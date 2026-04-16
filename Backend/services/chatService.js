@@ -76,6 +76,7 @@ async function listChatsForUser(userId) {
 async function sendMessage(chatId, senderId, content) {
   await ensureParticipantOrThrow(chatId, senderId);
   const msg = await Message.createMessage({ chat_id: chatId, sender_id: senderId, content });
+  await ChatParticipant.markRead(chatId, senderId, msg.sent_at);
   // notify other participants
   const parts = await ChatParticipant.listParticipants(chatId);
   for (const p of parts) {
@@ -94,6 +95,11 @@ async function listMessages(chatId, requesterId, opts = {}) {
   return Message.getMessagesByChat(chatId, opts);
 }
 
+async function markChatRead(chatId, requesterId) {
+  await ensureParticipantOrThrow(chatId, requesterId);
+  return ChatParticipant.markRead(chatId, requesterId);
+}
+
 module.exports = {
   createChat,
   addParticipant,
@@ -102,4 +108,5 @@ module.exports = {
   listChatsForUser,
   sendMessage,
   listMessages,
+  markChatRead,
 };
