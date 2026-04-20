@@ -39,7 +39,16 @@ async function login(req, res) {
   try {
     const result = await authService.loginUserByEmail(email, password);
     if (!result) return res.status(401).json({ error: 'Invalid credentials' });
-    return res.json({ accessToken: result.accessToken, refreshToken: result.refreshToken, user: { user_id: result.user.user_id, name: result.user.name, email: result.user.email } });
+    return res.json({
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: {
+        user_id: result.user.user_id,
+        first_name: result.user.first_name,
+        last_name: result.user.last_name,
+        email: result.user.email,
+      },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Server error' });

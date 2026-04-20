@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const User = require('../models/userModel');
+const { normalizeEmail, hashEmail, isSha256Hash } = require('../utils/emailHash');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
 const ACCESS_EXPIRES = process.env.ACCESS_EXPIRES || '15m';
@@ -11,7 +12,6 @@ const REFRESH_EXPIRES_DAYS = parseInt(process.env.REFRESH_EXPIRES_DAYS || '14', 
 function signAccessToken(user) {
   const payload = {
     sub: user.user_id,
-    email: user.email,
   };
   return jwt.sign(payload, JWT_SECRET, { expiresIn: ACCESS_EXPIRES });
 }
@@ -51,28 +51,35 @@ async function useRefreshToken(tokenPlain) {
 }
 
 async function loginUserByEmail(email, password) {
-  const user = await User.getUserByEmail(email);
+  const normalizedEmail = normalizeEmail(email);
+  const user = await User.getUserByEmail(normalizedEmail);
   if (!user) return null;
   const bcrypt = require('bcryptjs');
   const match = await bcrypt.compare(password, user.password_hash); // password ist hier plaintext und das zweite ein Hash
   if (!match) return null;
 
+  // Gradually migrate legacy plaintext emails to hash on successful login.
+  if (!isSha256Hash(user.email)) {
+    await User.updateUserEmail(user.user_id, hashEmail(normalizedEmail));
+  }
+
   const accessToken = signAccessToken(user);
   const refreshPlain = generateRefreshTokenPlain();
   await saveRefreshToken(user.user_id, refreshPlain);
-  return { accessToken, refreshToken: refreshPlain, user };
+  return { accessToken, refreshToken: refreshPlain, user: { ...user, email: normalizedEmail } };
 }
 
 async function registerUser(first_name, last_name, email, password) {
   if (!first_name || !last_name || !email || !password) throw new Error('invalid_input');
-  const existing = await User.getUserByEmail(email);
+  const normalizedEmail = normalizeEmail(email);
+  const existing = await User.getUserByEmail(normalizedEmail);
   if (existing) throw new Error('email_taken');
 
   const bcrypt = require('bcryptjs');
   const rounds = parseInt(process.env.BCRYPT_ROUNDS || '12', 10);
   const hash = await bcrypt.hash(password, rounds);
-  const newUser = await User.createUser(first_name, last_name, email, hash);
-  return newUser;
+  const newUser = await User.createUser(first_name, last_name, normalizedEmail, hash);
+  return { ...newUser, email: normalizedEmail };
 }
 
 module.exports = { loginUserByEmail, useRefreshToken, removeRefreshToken, signAccessToken, registerUser };

@@ -118,11 +118,12 @@ export default function Signup() {
         setLoading(true);
 
         try {
+            const normalizedEmail = email.trim().toLowerCase();
             // 1️⃣ Registrierung bei API
             const registerResponse = await registerUser(
                 firstname.trim(),
                 lastname.trim(),
-                email.trim(),
+                normalizedEmail,
                 password.trim()
             );
 
@@ -130,17 +131,18 @@ export default function Signup() {
 
             const { user: registeredUser } = registerResponse.data;
 
-            const loginResponse = await loginUser(email.trim(), password.trim());
+            const loginResponse = await loginUser(normalizedEmail, password.trim());
             const { accessToken, refreshToken } = loginResponse.data;
 
             await SecureStore.setItemAsync("authToken", accessToken);
             await SecureStore.setItemAsync("refreshToken", refreshToken);
             await SecureStore.setItemAsync("userId", String(registeredUser.user_id));
+            await SecureStore.setItemAsync("userEmail", normalizedEmail);
 
             login(
                 registeredUser.first_name,
                 registeredUser.last_name,
-                registeredUser.email,
+                normalizedEmail,
                 registeredUser.image,
                 registeredUser.user_id
             );

@@ -13,7 +13,7 @@ async function removeParticipant(chatId, userId) {
 }
 
 async function listParticipants(chatId) {
-  const q = `SELECT cp.chat_id, cp.user_id, cp.joined_at, cp.role, cp.last_read_at, u.first_name, u.email FROM chat_participants cp JOIN users u ON u.user_id = cp.user_id WHERE cp.chat_id = $1 ORDER BY cp.joined_at`;
+  const q = `SELECT cp.chat_id, cp.user_id, cp.joined_at, cp.role, cp.last_read_at, u.first_name FROM chat_participants cp JOIN users u ON u.user_id = cp.user_id WHERE cp.chat_id = $1 ORDER BY cp.joined_at`;
   const res = await db.query(q, [chatId]);
   return res.rows;
 }

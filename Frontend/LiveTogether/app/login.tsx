@@ -8,6 +8,8 @@ import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
+const isSha256Hash = (value?: string | null) => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+
 export default function LoginScreen() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -32,6 +34,7 @@ export default function LoginScreen() {
                 const accessToken = await SecureStore.getItemAsync("authToken");
                 const refreshTokenLokal = await SecureStore.getItemAsync("refreshToken");
                 const userId = await SecureStore.getItemAsync("userId");
+                const storedEmail = await SecureStore.getItemAsync("userEmail");
                 // Wenn Token existieren, ggf. Userdaten abrufen und einloggen
                 if (devmode) {
 
@@ -41,8 +44,9 @@ export default function LoginScreen() {
                 if (accessToken && refreshTokenLokal && userId && !devmode) {
                     const response = await getUserById(userId);
                     const user = response.data.data;
+                    const safeEmail = isSha256Hash(user?.email) ? (storedEmail || "") : (user?.email || storedEmail || "");
 
-                    login(user.first_name, user.last_name, user.email, user.image, user.user_id);
+                    login(user.first_name, user.last_name, safeEmail, user.image, user.user_id);
 
                     router.replace("/(tabs)/feed");
                 }
@@ -68,9 +72,10 @@ export default function LoginScreen() {
 
         try {
             setLoading(true); // Ladezustand aktivieren
+            const normalizedEmail = email.trim().toLowerCase();
 
             // API-Request für Login
-            const response = await loginUser(email, password);
+            const response = await loginUser(normalizedEmail, password);
 
             // Response auspacken: Token(s) und Userdaten
             const {accessToken, refreshToken, user} = response.data;
@@ -83,23 +88,25 @@ export default function LoginScreen() {
             await SecureStore.setItemAsync("authToken", String(accessToken));
             await SecureStore.setItemAsync("refreshToken", String(refreshToken));
             await SecureStore.setItemAsync("userId", String(user.user_id));
+            await SecureStore.setItemAsync("userEmail", normalizedEmail);
 
             // Nach Login vollständiges Profil laden (wichtig: Name sofort verfügbar)
             // Fallback auf Login-Response, falls Profil-Request fehlschlägt.
             try {
                 const profileResponse = await getUserById(String(user.user_id));
                 const fullUser = profileResponse?.data?.data;
+                const fullUserEmail = isSha256Hash(fullUser?.email) ? normalizedEmail : (fullUser?.email ?? normalizedEmail);
 
                 login(
                     fullUser?.first_name ?? user.first_name ?? "",
                     fullUser?.last_name ?? user.last_name ?? "",
-                    fullUser?.email ?? user.email,
+                    fullUserEmail,
                     fullUser?.image,
                     fullUser?.user_id ?? user.user_id
                 );
             } catch (profileError) {
                 console.warn("Profil konnte nach Login nicht geladen werden:", profileError);
-                login(user.first_name ?? "", user.last_name ?? "", user.email, user.image, user.user_id);
+                login(user.first_name ?? "", user.last_name ?? "", normalizedEmail, user.image, user.user_id);
             }
 
             // Weiterleitung zum Feed

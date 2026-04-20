@@ -1,4 +1,5 @@
 const db = require('../db');
+const { normalizeEmail, hashEmail } = require('../utils/emailHash');
 
 async function getAllUsers() {
   const res = await db.query('SELECT user_id, first_name, last_name, email FROM users ORDER BY user_id');
@@ -11,7 +12,12 @@ async function getUserById(id) {
 }
 
 async function getUserByEmail(email) {
-  const res = await db.query('SELECT user_id, first_name, last_name, email, password_hash, pw_reset_token, reset_token_timeout FROM users WHERE email = $1', [email]);
+  const normalizedEmail = normalizeEmail(email);
+  const hashedEmail = hashEmail(normalizedEmail);
+  const res = await db.query(
+    'SELECT user_id, first_name, last_name, email, password_hash, pw_reset_token, reset_token_timeout FROM users WHERE email = $1 OR email = $2 LIMIT 1',
+    [hashedEmail, normalizedEmail]
+  );
   return res.rows[0] || null;
 }
 
@@ -33,9 +39,17 @@ async function updatePassword(id, hashedPassword, client) {
 }
 
 async function createUser(first_name, last_name, email, hashedPassword) {
+  const normalizedEmail = normalizeEmail(email);
+  const hashedEmail = hashEmail(normalizedEmail);
   const q = `INSERT INTO users (first_name, last_name, email, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, now(), now()) RETURNING user_id, first_name, last_name, email`;
-  const res = await db.query(q, [first_name, last_name, email, hashedPassword]);
+  const res = await db.query(q, [first_name, last_name, hashedEmail, hashedPassword]);
   return res.rows[0];
+}
+
+async function updateUserEmail(userId, emailValue, client) {
+  const q = 'UPDATE users SET email = $1, updated_at = now() WHERE user_id = $2';
+  if (client) return client.query(q, [emailValue, userId]);
+  return db.query(q, [emailValue, userId]);
 }
 module.exports = {
   getAllUsers,
@@ -44,5 +58,6 @@ module.exports = {
   getUserByResetToken,
   setResetToken,
   updatePassword,
-    createUser,
+  createUser,
+  updateUserEmail,
 };

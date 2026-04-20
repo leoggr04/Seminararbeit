@@ -55,7 +55,7 @@ async function getUserByEmail(req, res) {
     const { user_id, first_name, last_name } = user;
     return res.json({
       success: true,
-      data: { user_id, first_name, last_name, email: user.email },
+      data: { user_id, first_name, last_name },
     });
   } catch (err) {
     console.error(err);

@@ -157,7 +157,6 @@ export default function ChatInfoScreen() {
             <View style={styles.participantItem}>
                 <View style={styles.participantInfo}>
                     <Text style={styles.participantName}>{item.name || "Unbekannt"}</Text>
-                    {item.email && <Text style={styles.participantEmail}>{item.email}</Text>}
                 </View>
                 <TouchableOpacity
                     style={styles.deleteButton}
@@ -317,11 +316,6 @@ const styles = StyleSheet.create({
     participantName: {
         fontSize: 16,
         fontWeight: "600",
-    },
-    participantEmail: {
-        fontSize: 12,
-        color: "#666",
-        marginTop: 4,
     },
     deleteButton: {
         paddingHorizontal: 10,

@@ -102,6 +102,7 @@ export const clearStoredAuth = async () => {
     await SecureStore.deleteItemAsync("authToken");
     await SecureStore.deleteItemAsync("refreshToken");
     await SecureStore.deleteItemAsync("userId");
+    await SecureStore.deleteItemAsync("userEmail");
 };
 
 // === REQUEST INTERCEPTOR ===

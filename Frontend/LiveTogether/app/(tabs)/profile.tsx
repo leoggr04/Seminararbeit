@@ -1,5 +1,6 @@
 import LogoutModal from "@/components/LogoutModal";
 import { useUser } from "@/components/UserContext";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { clearStoredAuth, getDashboardSummary } from "@/services/api";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -124,6 +125,7 @@ const toStatItems = (summary: DashboardSummary | null): StatItem[] => {
 const Profile = () => {
     const { user, logout } = useUser();
     const router = useRouter();
+    const tabBarHeight = useBottomTabBarHeight();
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -201,7 +203,13 @@ const Profile = () => {
             <View style={styles.backgroundOrbTop} />
             <View style={styles.backgroundOrbBottom} />
 
-            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+            <ScrollView
+                contentContainerStyle={[
+                    styles.content,
+                    { paddingBottom: tabBarHeight + 60 },
+                ]}
+                showsVerticalScrollIndicator={false}
+            >
                 <View style={styles.heroCard}>
                     <View style={styles.badgeRow}>
                         <Text style={styles.badgeText}>PROFIL</Text>
@@ -318,7 +326,6 @@ const styles = StyleSheet.create({
     content: {
         paddingHorizontal: 18,
         paddingTop: 24,
-        paddingBottom: 30,
     },
     heroCard: {
         backgroundColor: "#FFFFFF",

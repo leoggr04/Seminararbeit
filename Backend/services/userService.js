@@ -13,10 +13,10 @@ async function requestPasswordReset(email) {
   const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
 
   // Save token to DB
-  await User.setResetToken(user.id, token, expiresAt);
+  await User.setResetToken(user.user_id, token, expiresAt);
 
   // In production: send token via email. For demo return token.
-  return { userId: user.id, token, expiresAt };
+  return { userId: user.user_id, token, expiresAt };
 }
 
 async function resetPassword(token, newPassword) {
@@ -35,7 +35,7 @@ async function resetPassword(token, newPassword) {
   const client = await db.pool.connect();
   try {
     await client.query('BEGIN');
-    await User.updatePassword(user.id, hash, client);
+    await User.updatePassword(user.user_id, hash, client);
     await client.query('COMMIT');
     return { success: true };
   } catch (err) {
