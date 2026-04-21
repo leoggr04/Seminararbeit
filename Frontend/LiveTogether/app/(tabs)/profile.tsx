@@ -1,8 +1,8 @@
 import LogoutModal from "@/components/LogoutModal";
 import { useUser } from "@/components/UserContext";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
-import { clearStoredAuth, getDashboardSummary } from "@/services/api";
+import { clearStoredAuth, getDashboardEvents, getDashboardSummary } from "@/services/api";
 import { MaterialIcons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -16,6 +16,11 @@ import {
 
 type DashboardSummary = Record<string, unknown>;
 
+type DashboardEvent = {
+    event_type?: string;
+    created_at?: string;
+};
+
 type StatItem = {
     key: string;
     label: string;
@@ -25,6 +30,99 @@ type StatItem = {
 };
 
 const MAX_VISIBLE_STATS = 8;
+const DAILY_XP_CAP = 200;
+const XP_WEIGHTS: Record<string, number> = {
+    activity_created: 30,
+    activity_joined: 25,
+    activity_left: 0,
+    chat_left: 0,
+    activity_participant_removed: 2,
+    chat_created: 2,
+    chat_message_sent: 2,
+    chat_participant_added: 2,
+    chat_participant_removed: 2,
+};
+
+const SMALL_EVENT_DEFAULT_XP = 2;
+
+const getXpForEventType = (eventType: string) => {
+    const normalized = eventType.trim().toLowerCase();
+    if (normalized in XP_WEIGHTS) {
+        return XP_WEIGHTS[normalized];
+    }
+    return SMALL_EVENT_DEFAULT_XP;
+};
+
+const getRequiredXpForLevel = (level: number) => {
+    if (level <= 1) return 80;
+    if (level === 2) return 100;
+    if (level === 3) return 120;
+    if (level === 4) return 140;
+    if (level === 5) return 160;
+    if (level === 6) return 190;
+    if (level === 7) return 220;
+    if (level === 8) return 250;
+    if (level === 9) return 280;
+    if (level === 10) return 310;
+    return 350;
+};
+
+const resolveLevelFromXp = (xp: number) => {
+    const safeXp = Math.max(0, Math.floor(xp));
+    let remainingXp = safeXp;
+    let level = 1;
+    let xpForCurrentLevel = getRequiredXpForLevel(level);
+
+    while (remainingXp >= xpForCurrentLevel) {
+        remainingXp -= xpForCurrentLevel;
+        level += 1;
+        xpForCurrentLevel = getRequiredXpForLevel(level);
+    }
+
+    return {
+        level,
+        progressInLevel: remainingXp,
+        pointsForLevel: xpForCurrentLevel,
+    };
+};
+
+const extractCountData = (summary: DashboardSummary | null) => {
+    if (!summary || !summary.counts || typeof summary.counts !== "object") {
+        return null;
+    }
+
+    const counts = summary.counts as Record<string, unknown>;
+    const period = counts.period;
+    const lifetime = counts.lifetime;
+
+    if (period && typeof period === "object") return period as Record<string, unknown>;
+    if (lifetime && typeof lifetime === "object") return lifetime as Record<string, unknown>;
+    return null;
+};
+
+const computeXpFromCounts = (summary: DashboardSummary | null) => {
+    const countData = extractCountData(summary);
+    if (!countData) return 0;
+
+    return Object.entries(countData)
+        .filter(([, value]) => typeof value === "number" && Number.isFinite(value))
+        .reduce((acc, [key, value]) => acc + getXpForEventType(key) * Math.max(0, Number(value)), 0);
+};
+
+const computeXpFromEventsWithDailyCap = (events: DashboardEvent[]) => {
+    if (!events.length) return 0;
+
+    const dailyXp: Record<string, number> = {};
+
+    for (const event of events) {
+        if (!event?.event_type || !event?.created_at) continue;
+        const dayKey = new Date(event.created_at).toISOString().slice(0, 10);
+        const eventXp = Math.max(0, getXpForEventType(event.event_type));
+        dailyXp[dayKey] = (dailyXp[dayKey] ?? 0) + eventXp;
+    }
+
+    return Object.values(dailyXp).reduce((acc, dayXp) => acc + Math.min(dayXp, DAILY_XP_CAP), 0);
+};
 
 const prettifyLabel = (rawKey: string) => {
     const germanLabels: Record<string, string> = {
@@ -127,6 +225,7 @@ const Profile = () => {
     const router = useRouter();
     const tabBarHeight = useBottomTabBarHeight();
     const [summary, setSummary] = useState<DashboardSummary | null>(null);
+    const [dashboardEvents, setDashboardEvents] = useState<DashboardEvent[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
@@ -134,25 +233,49 @@ const Profile = () => {
     const statItems = useMemo(() => toStatItems(summary), [summary]);
 
     const totalPoints = useMemo(() => {
-        if (!summary) return 0;
-
-        const prioritizedKeys = ["score", "points", "xp", "experience"];
-        for (const key of prioritizedKeys) {
-            const value = summary[key];
-            if (typeof value === "number" && Number.isFinite(value)) {
-                return Math.max(0, Math.round(value));
-            }
+        const eventsBasedXp = computeXpFromEventsWithDailyCap(dashboardEvents);
+        if (eventsBasedXp > 0) {
+            return Math.round(eventsBasedXp);
         }
 
-        const sum = statItems.reduce((acc, item) => acc + Math.max(0, item.value), 0);
-        return Math.round(sum);
-    }, [summary, statItems]);
+        return Math.round(computeXpFromCounts(summary));
+    }, [dashboardEvents, summary]);
 
-    const level = Math.max(1, Math.floor(totalPoints / 120) + 1);
-    const pointsForLevel = 120;
-    const progressInLevel = totalPoints % pointsForLevel;
+    const { level, pointsForLevel, progressInLevel } = useMemo(
+        () => resolveLevelFromXp(totalPoints),
+        [totalPoints]
+    );
     const levelProgress = progressInLevel / pointsForLevel;
     const initials = `${user?.first_name?.[0] ?? ""}${user?.last_name?.[0] ?? ""}`.toUpperCase();
+
+    const loadDashboardEventsForPeriod = async (from?: string, to?: string) => {
+        const batchSize = 200;
+        const maxPages = 20;
+        const allEvents: DashboardEvent[] = [];
+        let offset = 0;
+
+        for (let page = 0; page < maxPages; page += 1) {
+            const batch = await getDashboardEvents({
+                limit: batchSize,
+                offset,
+                from,
+                to,
+            });
+
+            if (!Array.isArray(batch) || batch.length === 0) {
+                break;
+            }
+
+            allEvents.push(...(batch as DashboardEvent[]));
+            if (batch.length < batchSize) {
+                break;
+            }
+
+            offset += batch.length;
+        }
+
+        return allEvents;
+    };
 
     const loadDashboardSummary = async () => {
         try {
@@ -168,12 +291,32 @@ const Profile = () => {
                 const entries = Object.entries(data.counts.period);
                 console.log(`[Profile] 📊 ${entries.length} numerische Felder gefunden in counts.period:`, data.counts.period);
             }
+
+            const periodRaw = (data as Record<string, unknown>)?.period;
+            const period =
+                periodRaw && typeof periodRaw === "object"
+                    ? (periodRaw as Record<string, unknown>)
+                    : null;
+            const from = typeof period?.from === "string" ? period.from : undefined;
+            const to = typeof period?.to === "string" ? period.to : undefined;
+
+            try {
+                const events = await loadDashboardEventsForPeriod(from, to);
+                console.log(
+                    `[Profile] 🧮 ${events.length} Events für XP-Berechnung geladen (Tages-Cap ${DAILY_XP_CAP})`
+                );
+                setDashboardEvents(events);
+            } catch (eventsError) {
+                console.warn("[Profile] ⚠️ Events konnten nicht geladen werden, fallback auf counts-basierte XP", eventsError);
+                setDashboardEvents([]);
+            }
             
             setSummary(data ?? null);
         } catch (err) {
             console.error("[Profile] ❌ Fehler beim Laden der Dashboard Summary:", err);
             setError("Statistiken konnten nicht geladen werden.");
             setSummary(null);
+            setDashboardEvents([]);
         } finally {
             setIsLoading(false);
             console.log("[Profile] ⏹️ Loading-State beendet");
