@@ -50,6 +50,8 @@ type Props = {
 };
 
 const DEFAULT_COORDS = { latitude: 48.137154, longitude: 11.576124 };
+const CUSTOM_TILE_URL = process.env.EXPO_PUBLIC_TILE_URL?.trim() || "";
+const USE_ANDROID_CUSTOM_TILES = Platform.OS === "android" && CUSTOM_TILE_URL.length > 0;
 
 const UpdateActivityModal: React.FC<Props> = ({
                                                 visible,
@@ -155,7 +157,7 @@ const UpdateActivityModal: React.FC<Props> = ({
                             <MapView
                                 style={styles.map}
                                 region={region}
-                                mapType={Platform.OS === "android" ? "none" : "standard"}
+                                mapType={USE_ANDROID_CUSTOM_TILES ? "none" : "standard"}
                                 onPress={(e) => {
                                     const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
                                     updateLocation(lat, lng);
@@ -164,10 +166,12 @@ const UpdateActivityModal: React.FC<Props> = ({
                                 scrollEnabled
                                 zoomEnabled
                             >
-                                <UrlTile
-                                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    maximumZ={19}
-                                />
+                                {USE_ANDROID_CUSTOM_TILES && (
+                                    <UrlTile
+                                        urlTemplate={CUSTOM_TILE_URL}
+                                        maximumZ={19}
+                                    />
+                                )}
                                 <Marker
                                     coordinate={markerCoord}
                                     draggable

@@ -40,6 +40,9 @@ const initialRegion = {
     longitudeDelta: 0.1,
 };
 
+const CUSTOM_TILE_URL = process.env.EXPO_PUBLIC_TILE_URL?.trim() || "";
+const USE_ANDROID_CUSTOM_TILES = Platform.OS === "android" && CUSTOM_TILE_URL.length > 0;
+
 const MAX_OWN_ACTIVE_ACTIVITIES = 5;
 
 type ActivityTypeOption = {
@@ -762,7 +765,7 @@ const Map = () => {
                     key={hasLocationPermission ? "map-with-location" : "map-without-location"}
                     ref={mapRef}
                     style={StyleSheet.absoluteFill}
-                    mapType={Platform.OS === "android" ? "none" : "standard"}
+                    mapType={USE_ANDROID_CUSTOM_TILES ? "none" : "standard"}
                     initialRegion={mapInitialRegion}
                     showsUserLocation={hasLocationPermission}
                     showsMyLocationButton={false}
@@ -772,10 +775,12 @@ const Map = () => {
                     onPress={handleMapPress}
                     onRegionChangeComplete={handleRegionChangeComplete}
                 >
-                    <UrlTile
-                        urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        maximumZ={19}
-                    />
+                    {USE_ANDROID_CUSTOM_TILES && (
+                        <UrlTile
+                            urlTemplate={CUSTOM_TILE_URL}
+                            maximumZ={19}
+                        />
+                    )}
 
                     {filteredMarkers.map((marker) => (
                         <MarkerWithEmoji
@@ -790,7 +795,7 @@ const Map = () => {
                 </MapView>
             )}
 
-            {isInitialRegionResolved && (
+            {isInitialRegionResolved && USE_ANDROID_CUSTOM_TILES && (
                 <View style={styles.osmAttributionContainer} pointerEvents="none">
                     <Text style={styles.osmAttributionText}>© OpenStreetMap contributors</Text>
                 </View>

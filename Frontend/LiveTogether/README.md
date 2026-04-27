@@ -16,6 +16,15 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+3. Optional: configure custom map tiles for Android
+
+   ```bash
+   # .env
+   EXPO_PUBLIC_TILE_URL=https://your-tile-provider/{z}/{x}/{y}.png?key=YOUR_KEY
+   ```
+
+   Note: Do not use `https://tile.openstreetmap.org/{z}/{x}/{y}.png` directly in production apps. Use a provider that allows mobile app usage (or your own tile server).
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)
