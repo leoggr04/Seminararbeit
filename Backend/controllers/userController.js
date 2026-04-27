@@ -160,6 +160,51 @@ async function resetPassword(req, res) {
   }
 }
 
+async function deleteUser(req, res) {
+  const id = parseInt(req.params.id, 10);
+  if (Number.isNaN(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid id' });
+  }
+
+  if (!req.user || req.user.user_id !== id) {
+    return res.status(403).json({ success: false, error: 'forbidden' });
+  }
+
+  try {
+    const result = await userService.deleteUserCascade(id);
+    if (!result) return res.status(404).json({ success: false, error: 'User not found' });
+
+    return res.json({ success: true, data: result });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ success: false, error: 'Server error' });
+  }
+}
+
+/**
+ * @openapi
+ * /api/users/{id}:
+ *   delete:
+ *     tags:
+ *       - users
+ *     summary: Delete own user account and related data
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User and related data deleted
+ *       403:
+ *         description: Forbidden (can only delete own account)
+ *       404:
+ *         description: User not found
+ */
+
 /**
  * @openapi
  * /api/users/reset:
@@ -192,5 +237,6 @@ module.exports = {
   getUserByEmail,
   requestPasswordReset,
   resetPassword,
+  deleteUser,
 };
 

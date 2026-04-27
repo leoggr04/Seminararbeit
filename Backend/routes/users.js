@@ -12,6 +12,9 @@ router.get('/by-email', authenticate, userController.getUserByEmail);
 // GET /api/users/:id
 router.get('/:id', authenticate, userController.getUser);
 
+// DELETE /api/users/:id
+router.delete('/:id', authenticate, userController.deleteUser);
+
 // POST /api/users/request-reset
 router.post('/request-reset', userController.requestPasswordReset);
 
