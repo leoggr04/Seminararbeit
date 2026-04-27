@@ -22,6 +22,7 @@ import {
     Alert,
     Animated,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -29,7 +30,7 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import MapView, { Region } from "react-native-maps";
+import MapView, { Region, UrlTile } from "react-native-maps";
 
 
 const initialRegion = {
@@ -761,6 +762,7 @@ const Map = () => {
                     key={hasLocationPermission ? "map-with-location" : "map-without-location"}
                     ref={mapRef}
                     style={StyleSheet.absoluteFill}
+                    mapType={Platform.OS === "android" ? "none" : "standard"}
                     initialRegion={mapInitialRegion}
                     showsUserLocation={hasLocationPermission}
                     showsMyLocationButton={false}
@@ -770,6 +772,11 @@ const Map = () => {
                     onPress={handleMapPress}
                     onRegionChangeComplete={handleRegionChangeComplete}
                 >
+                    <UrlTile
+                        urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                        maximumZ={19}
+                    />
+
                     {filteredMarkers.map((marker) => (
                         <MarkerWithEmoji
                             // stable key -> not changing due to filtering
@@ -781,6 +788,12 @@ const Map = () => {
                     ))}
 
                 </MapView>
+            )}
+
+            {isInitialRegionResolved && (
+                <View style={styles.osmAttributionContainer} pointerEvents="none">
+                    <Text style={styles.osmAttributionText}>© OpenStreetMap contributors</Text>
+                </View>
             )}
 
             {/* Kategorie-Bubbles */}
@@ -1045,6 +1058,20 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: "#334155",
         fontWeight: "600",
+    },
+    osmAttributionContainer: {
+        position: "absolute",
+        left: 10,
+        bottom: 16,
+        backgroundColor: "rgba(255,255,255,0.82)",
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        zIndex: 20,
+    },
+    osmAttributionText: {
+        fontSize: 11,
+        color: "#334155",
     },
     modalBackground: {
         flex: 1,
