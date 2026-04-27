@@ -13,6 +13,7 @@ import React, { useEffect, useState } from "react";
 import {
     Dimensions,
     Modal,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -20,7 +21,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import MapView, { Marker, Region, UrlTile } from "react-native-maps";
 import DateRangePicker from "./DateTimePicker";
 
 type ActivityType = {
@@ -154,6 +155,7 @@ const UpdateActivityModal: React.FC<Props> = ({
                             <MapView
                                 style={styles.map}
                                 region={region}
+                                mapType={Platform.OS === "android" ? "none" : "standard"}
                                 onPress={(e) => {
                                     const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
                                     updateLocation(lat, lng);
@@ -162,6 +164,10 @@ const UpdateActivityModal: React.FC<Props> = ({
                                 scrollEnabled
                                 zoomEnabled
                             >
+                                <UrlTile
+                                    urlTemplate="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                    maximumZ={19}
+                                />
                                 <Marker
                                     coordinate={markerCoord}
                                     draggable
