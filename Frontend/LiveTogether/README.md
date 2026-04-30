@@ -21,9 +21,10 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    ```bash
    # .env
    EXPO_PUBLIC_TILE_URL=https://your-tile-provider/{z}/{x}/{y}.png?key=YOUR_KEY
+   EXPO_PUBLIC_OSM_PROXY_URL=https://your-backend.example.com/api/tiles/{z}/{x}/{y}.png
    ```
 
-   The app now defaults to the HTTPS OpenStreetMap tile server on both iOS and Android when no custom URL is set.
+   For OSM compliance, prefer the backend proxy URL above. The backend sets a dedicated User-Agent, Referer, and local cache for OpenStreetMap tiles.
    If you override the URL, keep it HTTPS-only; `http://` URLs are automatically normalized to HTTPS.
 
 In the output, you'll find options to open the app in a

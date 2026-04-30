@@ -8,6 +8,7 @@ Version: v1
 */
 
 import { Picker } from "@react-native-picker/picker";
+import * as FileSystem from "expo-file-system";
 import { X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
@@ -23,7 +24,7 @@ import {
 } from "react-native";
 import MapView, { Marker, Region, UrlTile } from "react-native-maps";
 import DateRangePicker from "./DateTimePicker";
-import { logMapProviderState, resolveOsmTileUrl } from "@/utils/osmMap";
+import { logMapProviderState, DEFAULT_OSM_TILE_CACHE_PATH, resolveOsmTileUrlWithFallback } from "@/utils/osmMap";
 
 type ActivityType = {
     id: number;
@@ -51,9 +52,10 @@ type Props = {
 };
 
 const DEFAULT_COORDS = { latitude: 48.137154, longitude: 11.576124 };
-const OSM_TILE_URL = resolveOsmTileUrl();
+const OSM_TILE_URL = resolveOsmTileUrlWithFallback();
 const IS_ANDROID = Platform.OS === "android";
 const IS_IOS = Platform.OS === "ios";
+const OSM_TILE_CACHE_DIR = new FileSystem.Directory(FileSystem.Paths.cache, DEFAULT_OSM_TILE_CACHE_PATH);
 
 const UpdateActivityModal: React.FC<Props> = ({
                                                 visible,
@@ -81,6 +83,13 @@ const UpdateActivityModal: React.FC<Props> = ({
     const [markerCoord, setMarkerCoord] = useState(initialCoord);
 
     useEffect(() => {
+        try {
+            OSM_TILE_CACHE_DIR.create({ intermediates: true, idempotent: true });
+            console.log("[UpdateActivityModal] OSM tile cache directory:", OSM_TILE_CACHE_DIR.uri);
+        } catch (error) {
+            console.warn("[UpdateActivityModal] Failed to prepare OSM tile cache:", error);
+        }
+
         logMapProviderState("UpdateActivityModal", OSM_TILE_URL, Platform.OS);
     }, []);
 
@@ -186,6 +195,8 @@ const UpdateActivityModal: React.FC<Props> = ({
                                     <UrlTile
                                         urlTemplate={OSM_TILE_URL}
                                         maximumZ={19}
+                                        tileCachePath={OSM_TILE_CACHE_DIR.uri}
+                                        tileCacheMaxAge={7 * 24 * 60 * 60}
                                         shouldReplaceMapContent={IS_IOS}
                                     />
                                 )}

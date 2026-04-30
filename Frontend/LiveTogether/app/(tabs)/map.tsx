@@ -14,6 +14,7 @@ import { AntDesign } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Location from "expo-location";
+import * as FileSystem from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
@@ -31,7 +32,7 @@ import {
     View
 } from "react-native";
 import MapView, { Region, UrlTile } from "react-native-maps";
-import { logMapProviderState, resolveOsmTileUrl } from "@/utils/osmMap";
+import { logMapProviderState, DEFAULT_OSM_TILE_CACHE_PATH, resolveOsmTileUrlWithFallback } from "@/utils/osmMap";
 
 
 const initialRegion = {
@@ -41,9 +42,10 @@ const initialRegion = {
     longitudeDelta: 0.1,
 };
 
-const OSM_TILE_URL = resolveOsmTileUrl();
+const OSM_TILE_URL = resolveOsmTileUrlWithFallback();
 const IS_ANDROID = Platform.OS === "android";
 const IS_IOS = Platform.OS === "ios";
+const OSM_TILE_CACHE_DIR = new FileSystem.Directory(FileSystem.Paths.cache, DEFAULT_OSM_TILE_CACHE_PATH);
 
 const MAX_OWN_ACTIVE_ACTIVITIES = 5;
 
@@ -122,6 +124,13 @@ const Map = () => {
     const leavingAnimationStartedRef = React.useRef<Set<number>>(new Set());
 
     useEffect(() => {
+        try {
+            OSM_TILE_CACHE_DIR.create({ intermediates: true, idempotent: true });
+            console.log("[MapTab] OSM tile cache directory:", OSM_TILE_CACHE_DIR.uri);
+        } catch (error) {
+            console.warn("[MapTab] Failed to prepare OSM tile cache:", error);
+        }
+
         logMapProviderState("MapTab", OSM_TILE_URL, Platform.OS);
     }, []);
 
@@ -795,6 +804,8 @@ const Map = () => {
                         <UrlTile
                             urlTemplate={OSM_TILE_URL}
                             maximumZ={19}
+                            tileCachePath={OSM_TILE_CACHE_DIR.uri}
+                            tileCacheMaxAge={7 * 24 * 60 * 60}
                             shouldReplaceMapContent={IS_IOS}
                         />
                     )}

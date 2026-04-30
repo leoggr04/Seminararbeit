@@ -39,3 +39,9 @@ The server will run on http://localhost:3000 by default.
 ---
 
 This is a minimal Express backend. Expand as needed for your project requirements.
+
+## OSM tile proxy
+
+The backend exposes `GET /api/tiles/:z/:x/:y.png` as an OpenStreetMap tile proxy.
+
+It sets a dedicated `User-Agent`, `Referer`, and a local cache so tile requests follow the OSM usage guidelines more closely than direct client-side requests.
