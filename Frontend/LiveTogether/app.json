@@ -20,7 +20,8 @@
         "foregroundImage": "./assets/images/appstorev2.png"
       },
       "permissions": [
-        "ACCESS_FINE_LOCATION",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
         "ACCESS_FINE_LOCATION"
       ],
       "edgeToEdgeEnabled": true,

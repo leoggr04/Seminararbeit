@@ -23,6 +23,7 @@ import {
 } from "react-native";
 import MapView, { Marker, Region, UrlTile } from "react-native-maps";
 import DateRangePicker from "./DateTimePicker";
+import { logMapProviderState, resolveOsmTileUrl } from "@/utils/osmMap";
 
 type ActivityType = {
     id: number;
@@ -50,8 +51,9 @@ type Props = {
 };
 
 const DEFAULT_COORDS = { latitude: 48.137154, longitude: 11.576124 };
-const CUSTOM_TILE_URL = process.env.EXPO_PUBLIC_TILE_URL?.trim() || "";
-const USE_ANDROID_CUSTOM_TILES = Platform.OS === "android" && CUSTOM_TILE_URL.length > 0;
+const OSM_TILE_URL = resolveOsmTileUrl();
+const IS_ANDROID = Platform.OS === "android";
+const IS_IOS = Platform.OS === "ios";
 
 const UpdateActivityModal: React.FC<Props> = ({
                                                 visible,
@@ -77,6 +79,10 @@ const UpdateActivityModal: React.FC<Props> = ({
 
     const initialCoord = hasValidLocation ? { latitude: parsedLat, longitude: parsedLng } : DEFAULT_COORDS;
     const [markerCoord, setMarkerCoord] = useState(initialCoord);
+
+    useEffect(() => {
+        logMapProviderState("UpdateActivityModal", OSM_TILE_URL, Platform.OS);
+    }, []);
 
     const initialRegion: Region = {
         latitude: initialCoord.latitude,
@@ -157,7 +163,17 @@ const UpdateActivityModal: React.FC<Props> = ({
                             <MapView
                                 style={styles.map}
                                 region={region}
-                                mapType={USE_ANDROID_CUSTOM_TILES ? "none" : "standard"}
+                                mapType={IS_ANDROID ? "none" : "standard"}
+                                onMapReady={() => {
+                                    if (IS_ANDROID || IS_IOS) {
+                                        console.log("[UpdateActivityModal] Map ready, OSM tile overlay active.");
+                                    }
+                                }}
+                                onMapLoaded={() => {
+                                    if (IS_ANDROID || IS_IOS) {
+                                        console.log("[UpdateActivityModal] Map loaded, waiting for OSM tiles to finish rendering.");
+                                    }
+                                }}
                                 onPress={(e) => {
                                     const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
                                     updateLocation(lat, lng);
@@ -166,10 +182,11 @@ const UpdateActivityModal: React.FC<Props> = ({
                                 scrollEnabled
                                 zoomEnabled
                             >
-                                {USE_ANDROID_CUSTOM_TILES && (
+                                {(IS_ANDROID || IS_IOS) && (
                                     <UrlTile
-                                        urlTemplate={CUSTOM_TILE_URL}
+                                        urlTemplate={OSM_TILE_URL}
                                         maximumZ={19}
+                                        shouldReplaceMapContent={IS_IOS}
                                     />
                                 )}
                                 <Marker

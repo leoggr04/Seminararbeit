@@ -23,7 +23,8 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    EXPO_PUBLIC_TILE_URL=https://your-tile-provider/{z}/{x}/{y}.png?key=YOUR_KEY
    ```
 
-   Note: Do not use `https://tile.openstreetmap.org/{z}/{x}/{y}.png` directly in production apps. Use a provider that allows mobile app usage (or your own tile server).
+   The app now defaults to the HTTPS OpenStreetMap tile server on both iOS and Android when no custom URL is set.
+   If you override the URL, keep it HTTPS-only; `http://` URLs are automatically normalized to HTTPS.
 
 In the output, you'll find options to open the app in a
 

@@ -19,6 +19,15 @@ interface SelectedParticipant {
     email: string;
 }
 
+const getDisplayChatName = (chatName?: string, chatId?: number) => {
+    if (!chatName) return chatId ? `Chat ${chatId}` : "Chat";
+
+    const activityMatch = chatName.match(/^(Activity:\s*.*)\s*\(\d+\)$/);
+    if (activityMatch) return activityMatch[1].trim();
+
+    return chatName;
+};
+
 const Messages = () => {
     const router = useRouter();
     const { user } = useUser();
@@ -186,7 +195,7 @@ const Messages = () => {
                     <View style={styles.chatHeader}>
                         <View style={styles.chatNameRow}>
                             {item.has_unread ? <View style={styles.unreadDot} /> : null}
-                            <Text style={styles.chatName}>{item.chat_name || `Chat ${item.chat_id}`}</Text>
+                            <Text style={styles.chatName}>{getDisplayChatName(item.chat_name, item.chat_id)}</Text>
                         </View>
                         <Text style={styles.chatTime}>{new Date(item.created_at).toLocaleDateString()}</Text>
                     </View>

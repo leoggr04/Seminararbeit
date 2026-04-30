@@ -26,10 +26,19 @@ interface Participant {
     [key: string]: any;
 }
 
+const getDisplayChatName = (chatName?: string) => {
+    if (!chatName) return "Chat";
+
+    const activityMatch = chatName.match(/^(Activity:\s*.*)\s*\(\d+\)$/);
+    if (activityMatch) return activityMatch[1].trim();
+
+    return chatName;
+};
+
 export default function ChatInfoScreen() {
     const { id, name } = useLocalSearchParams();
     const chatId = Number(id);
-    const chatName = typeof name === "string" ? name : "Chat";
+    const chatName = getDisplayChatName(typeof name === "string" ? name : "Chat");
     const router = useRouter();
     
     const [participants, setParticipants] = useState<Participant[]>([]);

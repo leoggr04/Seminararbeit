@@ -31,6 +31,7 @@ import {
     View
 } from "react-native";
 import MapView, { Region, UrlTile } from "react-native-maps";
+import { logMapProviderState, resolveOsmTileUrl } from "@/utils/osmMap";
 
 
 const initialRegion = {
@@ -40,8 +41,9 @@ const initialRegion = {
     longitudeDelta: 0.1,
 };
 
-const CUSTOM_TILE_URL = process.env.EXPO_PUBLIC_TILE_URL?.trim() || "";
-const USE_ANDROID_CUSTOM_TILES = Platform.OS === "android" && CUSTOM_TILE_URL.length > 0;
+const OSM_TILE_URL = resolveOsmTileUrl();
+const IS_ANDROID = Platform.OS === "android";
+const IS_IOS = Platform.OS === "ios";
 
 const MAX_OWN_ACTIVE_ACTIVITIES = 5;
 
@@ -118,6 +120,10 @@ const Map = () => {
     const bubbleTranslateAnimRef = React.useRef<Record<number, Animated.Value>>({});
     const bubbleOpacityAnimRef = React.useRef<Record<number, Animated.Value>>({});
     const leavingAnimationStartedRef = React.useRef<Set<number>>(new Set());
+
+    useEffect(() => {
+        logMapProviderState("MapTab", OSM_TILE_URL, Platform.OS);
+    }, []);
 
     const requestLocationPermission = async () => {
         const currentPermission = await Location.getForegroundPermissionsAsync();
@@ -765,20 +771,31 @@ const Map = () => {
                     key={hasLocationPermission ? "map-with-location" : "map-without-location"}
                     ref={mapRef}
                     style={StyleSheet.absoluteFill}
-                    mapType={USE_ANDROID_CUSTOM_TILES ? "none" : "standard"}
+                    mapType={IS_ANDROID ? "none" : "standard"}
                     initialRegion={mapInitialRegion}
                     showsUserLocation={hasLocationPermission}
                     showsMyLocationButton={false}
                     showsCompass={false}
                     showsPointsOfInterest
                     showsBuildings
+                    onMapReady={() => {
+                        if (IS_ANDROID || IS_IOS) {
+                            console.log("[MapTab] Map ready, OSM tile overlay active.");
+                        }
+                    }}
+                    onMapLoaded={() => {
+                        if (IS_ANDROID || IS_IOS) {
+                            console.log("[MapTab] Map loaded, waiting for OSM tiles to finish rendering.");
+                        }
+                    }}
                     onPress={handleMapPress}
                     onRegionChangeComplete={handleRegionChangeComplete}
                 >
-                    {USE_ANDROID_CUSTOM_TILES && (
+                    {(IS_ANDROID || IS_IOS) && (
                         <UrlTile
-                            urlTemplate={CUSTOM_TILE_URL}
+                            urlTemplate={OSM_TILE_URL}
                             maximumZ={19}
+                            shouldReplaceMapContent={IS_IOS}
                         />
                     )}
 
@@ -795,7 +812,7 @@ const Map = () => {
                 </MapView>
             )}
 
-            {isInitialRegionResolved && USE_ANDROID_CUSTOM_TILES && (
+            {isInitialRegionResolved && (IS_ANDROID || IS_IOS) && (
                 <View style={styles.osmAttributionContainer} pointerEvents="none">
                     <Text style={styles.osmAttributionText}>© OpenStreetMap contributors</Text>
                 </View>

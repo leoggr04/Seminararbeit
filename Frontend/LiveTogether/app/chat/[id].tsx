@@ -32,6 +32,15 @@ interface User {
     email?: string;
 }
 
+const getDisplayChatName = (chatName?: string) => {
+    if (!chatName) return "Chat";
+
+    const activityMatch = chatName.match(/^(Activity:\s*.*)\s*\(\d+\)$/);
+    if (activityMatch) return activityMatch[1].trim();
+
+    return chatName;
+};
+
 export default function ChatScreen() {
     const { id, name } = useLocalSearchParams();
     const chatId = Number(id);
@@ -43,7 +52,7 @@ export default function ChatScreen() {
     const [loading, setLoading] = useState(true);
     const [input, setInput] = useState("");
     const [currentUserId, setCurrentUserId] = useState<number | null>(null);
-    const [currentChatName , setCurrentChatName] = useState(chatName);
+    const [currentChatName , setCurrentChatName] = useState(getDisplayChatName(chatName));
     const chatSocketRef = useRef<WebSocket | null>(null);
 
     useEffect(() => {
@@ -158,7 +167,7 @@ export default function ChatScreen() {
         console.log("Teilnehmer im Chat:", participants);
         if(participants.length !== 2) setCurrentChatName(chatName);
         else {
-            setCurrentChatName(participants.filter((p: User) => p.id !== currentUserId)[0]?.first_name || chatName);
+            setCurrentChatName(getDisplayChatName(participants.filter((p: User) => p.id !== currentUserId)[0]?.first_name || chatName));
         }
     }
 
@@ -197,13 +206,20 @@ export default function ChatScreen() {
     const chatHeader = () => {
         return (
             <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()}>
+                <TouchableOpacity style={styles.headerIconButton} onPress={() => router.back()}>
                     <Ionicons name="arrow-back" size={28} color="black" />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>{currentChatName}</Text>
+                <View style={styles.headerTitleContainer}>
+                    <Text style={styles.headerTitle} numberOfLines={1} ellipsizeMode="tail">
+                        {currentChatName}
+                    </Text>
+                </View>
 
-                <TouchableOpacity onPress={() => router.navigate(`/chat/${chatId}/info?name=${encodeURIComponent(currentChatName)}`)}>
+                <TouchableOpacity
+                    style={styles.headerIconButton}
+                    onPress={() => router.navigate(`/chat/${chatId}/info?name=${encodeURIComponent(currentChatName)}`)}
+                >
                     <Ionicons name="information-circle" size={28} color="black" />
                 </TouchableOpacity>
             </View>
@@ -304,7 +320,6 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
         paddingHorizontal: 15,
         paddingVertical: 25,
         backgroundColor: "#f8f9fa",
@@ -312,10 +327,24 @@ const styles = StyleSheet.create({
         borderBottomColor: "#ddd",
     },
 
+    headerIconButton: {
+        width: 40,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    headerTitleContainer: {
+        flex: 1,
+        minWidth: 0,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
     headerTitle: {
         fontSize: 22,
         fontWeight: "600",
-        marginLeft: 10,
+        textAlign: "center",
+        paddingHorizontal: 10,
     },
 
 });
