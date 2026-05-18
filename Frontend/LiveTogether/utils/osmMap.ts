@@ -36,6 +36,6 @@ export const resolveOsmTileUrlWithFallback = () => {
     return DEFAULT_OSM_TILE_URL;
 };
 
-export const logMapProviderState = (screenName: string, tileUrl: string, platformLabel: string) => {
-    console.log(`[${screenName}] provider=react-native-maps platform=${platformLabel} tileUrl=${tileUrl}`);
+export const logMapProviderState = (screenName: string, platformLabel: string) => {
+    console.log(`[${screenName}] provider=WebView+Leaflet platform=${platformLabel} using pure OpenStreetMap`);
 };

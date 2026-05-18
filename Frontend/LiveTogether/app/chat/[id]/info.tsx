@@ -1,20 +1,20 @@
+import { addParticipantToChat, deleteChatParticipant, getUserByEmail, listChatParticipants } from "@/services/api";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    TouchableOpacity,
-    TextInput,
-    Modal,
     ActivityIndicator,
     Alert,
+    FlatList,
+    Modal,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import { useLocalSearchParams, useRouter, Stack } from "expo-router";
-import { listChatParticipants, deleteChatParticipant, addParticipantToChat, getUserByEmail } from "@/services/api";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import * as SecureStore from "expo-secure-store";
 
 interface Participant {
     id?: number;
@@ -239,6 +239,7 @@ export default function ChatInfoScreen() {
                         <TextInput
                             style={styles.modalInput}
                             placeholder="E-Mail"
+                            placeholderTextColor="#7a7a7a"
                             keyboardType="email-address"
                             autoCapitalize="none"
                             autoCorrect={false}

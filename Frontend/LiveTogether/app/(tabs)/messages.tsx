@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
-import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
-import { connectToChatsUpdates, createNewChat, getUserByEmail, listChats } from "@/services/api";
 import { useUser } from "@/components/UserContext";
+import { connectToChatsUpdates, createNewChat, getUserByEmail, listChats } from "@/services/api";
+import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 interface Chat {
     chat_id: number;
@@ -241,6 +241,7 @@ const Messages = () => {
                         <TextInput
                             style={styles.modalInput}
                             placeholder="z.B. Friday Running Group"
+                            placeholderTextColor="#7a7a7a"
                             value={chatName}
                             onChangeText={setChatName}
                         />
@@ -250,6 +251,7 @@ const Messages = () => {
                             <TextInput
                                 style={[styles.modalInput, { flex: 1 }]}
                                 placeholder="E-Mail"
+                                placeholderTextColor="#7a7a7a"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}

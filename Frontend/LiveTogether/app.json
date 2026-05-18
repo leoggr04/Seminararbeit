@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "LiveTogether",
-    "slug": "LiveTogether",
+    "name": "Amici",
+    "slug": "Amici",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/appstorev2.png",
-    "scheme": "movieapp",
+    "scheme": "amici",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -26,11 +26,11 @@
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.LiveTogether"
+      "package": "com.amici"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/logo.png",
+      "favicon": "./assets/images/appstorev2.png",
       "bundler": "metro"
     },
     "plugins": [
@@ -38,7 +38,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
+          "image": "./assets/images/appstorev2.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -51,7 +51,15 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "reactNativeNewArchitecture": true
+
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0f33efc1-4484-4498-9b51-ba7cb8cda6cc"
+      }
     }
   }
 }

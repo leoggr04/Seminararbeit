@@ -1,21 +1,20 @@
+import { connectToChatUpdates, getChatParticipants, listChatMessages, markChatAsRead, sendMessage } from "@/services/api";
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import * as SecureStore from "expo-secure-store";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-    View,
-    Text,
-    StyleSheet,
     FlatList,
-    TextInput,
-    TouchableOpacity,
+    Keyboard,
     KeyboardAvoidingView,
     Platform,
-    Keyboard,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
     TouchableWithoutFeedback,
+    View,
 } from "react-native";
-import {Stack, useLocalSearchParams} from "expo-router";
-import * as SecureStore from "expo-secure-store";
-import { connectToChatUpdates, listChatMessages, markChatAsRead, sendMessage, getChatParticipants, getUserById } from "@/services/api";
-import Ionicons from '@expo/vector-icons/Ionicons';
-import {useRouter} from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface Message {
@@ -254,6 +253,7 @@ export default function ChatScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Schreibe eine Nachricht..."
+                                placeholderTextColor="#7a7a7a"
                                 value={input}
                                 onChangeText={setInput}
                                 multiline
