@@ -20,7 +20,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
+import { WebView } from "react-native-webview";
 import DateRangePicker from "./DateTimePicker";
 
 type ActivityType = {
@@ -74,27 +74,99 @@ const UpdateActivityModal: React.FC<Props> = ({
 
     const initialCoord = hasValidLocation ? { latitude: parsedLat, longitude: parsedLng } : DEFAULT_COORDS;
     const [markerCoord, setMarkerCoord] = useState(initialCoord);
+    const webViewRef = React.useRef<WebView>(null);
 
-    const initialRegion: Region = {
-        latitude: initialCoord.latitude,
-        longitude: initialCoord.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+    const updateLocation = (lat: number, lng: number) => {
+        setMarkerCoord({ latitude: lat, longitude: lng });
+        onChangeLatitude(String(lat));
+        onChangeLongitude(String(lng));
     };
-    const [region, setRegion] = useState<Region>(initialRegion);
 
     useEffect(() => {
         const coord = hasValidLocation ? { latitude: parsedLat, longitude: parsedLng } : DEFAULT_COORDS;
         setMarkerCoord(coord);
-        setRegion((r) => ({ ...r, latitude: coord.latitude, longitude: coord.longitude }));
+        if (webViewRef.current) {
+            webViewRef.current.injectJavaScript(`
+                window.updateMarkerLocation(${coord.latitude}, ${coord.longitude});
+                true;
+            `);
+        }
     }, [parsedLat, parsedLng, hasValidLocation]);
 
-    const updateLocation = (lat: number, lng: number) => {
-        setMarkerCoord({ latitude: lat, longitude: lng });
-        setRegion((r) => ({ ...r, latitude: lat, longitude: lng }));
-        onChangeLatitude(String(lat));
-        onChangeLongitude(String(lng));
+    const handleWebViewMessage = (e: any) => {
+        try {
+            const data = JSON.parse(e.nativeEvent.data);
+            if (data.type === "markerMoved") {
+                updateLocation(data.latitude, data.longitude);
+            } else if (data.type === "mapClick") {
+                updateLocation(data.latitude, data.longitude);
+            }
+        } catch (error) {
+            console.error("Error parsing WebView message:", error);
+        }
     };
+
+    const leafletHtmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+            <style>
+                * { margin: 0; padding: 0; }
+                html, body, #map { width: 100%; height: 100%; }
+                .marker-point { cursor: move; }
+            </style>
+        </head>
+        <body>
+            <div id="map"></div>
+            <script>
+                const map = L.map('map').setView([${initialCoord.latitude}, ${initialCoord.longitude}], 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19,
+                }).addTo(map);
+
+                let marker = L.marker([${initialCoord.latitude}, ${initialCoord.longitude}], {
+                    draggable: true,
+                    icon: L.icon({
+                        iconUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48Y2lyY2xlIGN4PSIyMCIgY3k9IjIwIiByPSIxNiIgZmlsbD0iIzAwN0FGRiIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIyIi8+PC9zdmc+',
+                        iconSize: [40, 40],
+                        iconAnchor: [20, 20],
+                    }),
+                    className: 'marker-point'
+                }).addTo(map);
+
+                window.updateMarkerLocation = function(lat, lng) {
+                    marker.setLatLng([lat, lng]);
+                    map.setView([lat, lng], map.getZoom());
+                };
+
+                marker.on('dragend', function() {
+                    const pos = marker.getLatLng();
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'markerMoved',
+                        latitude: pos.lat,
+                        longitude: pos.lng
+                    }));
+                });
+
+                map.on('click', function(e) {
+                    const { lat, lng } = e.latlng;
+                    marker.setLatLng([lat, lng]);
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'mapClick',
+                        latitude: lat,
+                        longitude: lng
+                    }));
+                });
+            </script>
+        </body>
+        </html>
+    `;
+
 
     if (!visible) return null;
 
@@ -151,26 +223,15 @@ const UpdateActivityModal: React.FC<Props> = ({
 
                         <Text style={styles.label}>Standort</Text>
                         <View style={styles.mapContainer}>
-                            <MapView
+                            <WebView
+                                ref={webViewRef}
+                                source={{ html: leafletHtmlContent }}
                                 style={styles.map}
-                                region={region}
-                                onPress={(e) => {
-                                    const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
-                                    updateLocation(lat, lng);
-                                }}
-                                onRegionChangeComplete={(r) => setRegion(r)}
-                                scrollEnabled
-                                zoomEnabled
-                            >
-                                <Marker
-                                    coordinate={markerCoord}
-                                    draggable
-                                    onDragEnd={(e) => {
-                                        const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
-                                        updateLocation(lat, lng);
-                                    }}
-                                />
-                            </MapView>
+                                onMessage={handleWebViewMessage}
+                                javaScriptEnabled={true}
+                                scalesPageToFit={false}
+                                startInLoadingState={true}
+                            />
                         </View>
                         <Text style={styles.mapHint}>
                             Tippe auf die Karte oder ziehe den Marker, um den Standort festzulegen.

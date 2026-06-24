@@ -1,11 +1,10 @@
-import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView, TouchableWithoutFeedback, Keyboard } from "react-native";
-import { useRouter } from "expo-router";
-import Icon from "@expo/vector-icons/Ionicons";
 import { useUser } from "@/components/UserContext";
-import * as ImagePicker from "expo-image-picker";
-import {registerUser, loginUser} from "@/services/api";
+import { loginUser, registerUser } from "@/services/api";
+import Icon from "@expo/vector-icons/Ionicons";
+import { useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import React, { useState } from "react";
+import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from "react-native";
 
 export default function Signup() {
     const [firstname, setFirstname] = useState("");
@@ -20,31 +19,11 @@ export default function Signup() {
     const [emailError, setEmailError] = useState(false);
     const [passwordError, setPasswordError] = useState(false);
     const { login } = useUser();
-    const [image, setImage] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
 
 
     const handleLogin = () => {
         router.replace("/(tabs)/feed");
-    };
-
-    const pickImage = async () => {
-        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (!permissionResult.granted) {
-            alert("Erlaubnis erforderlich, um Bilder auszuwählen!");
-            return;
-        }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 1,
-        });
-
-        if (!result.canceled) {
-            setImage(result.assets[0].uri);
-        }
     };
 
     const validateEmail = (value: string) => {
@@ -179,21 +158,12 @@ export default function Signup() {
 
                         <Text style={styles.title}>Konto erstellen</Text>
 
-                        <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
-                            {image ? (
-                                <Image source={{ uri: image }} style={styles.profileImage} />
-                            ) : (
-                                <View style={styles.placeholder}>
-                                    <Text style={styles.placeholderText}>+</Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
-
                         <View style={[styles.inputContainer, submitted && firstNameError ? styles.inputError : null]}>
                             <Icon name="person-outline" size={24} color="#888" style={styles.icon} />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Vorname"
+                                placeholderTextColor="#7a7a7a"
                                 value={firstname}
                                 onChangeText={setFirstname}
                                 keyboardType="default"
@@ -206,6 +176,7 @@ export default function Signup() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Nachname"
+                                placeholderTextColor="#7a7a7a"
                                 value={lastname}
                                 onChangeText={setLastname}
                                 keyboardType="default"
@@ -218,6 +189,7 @@ export default function Signup() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="E-Mail"
+                                placeholderTextColor="#7a7a7a"
                                 value={email}
                                 onChangeText={setEmail}
                                 keyboardType="email-address"
@@ -230,6 +202,7 @@ export default function Signup() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Passwort"
+                                placeholderTextColor="#7a7a7a"
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry
@@ -274,27 +247,6 @@ const styles = StyleSheet.create({
         marginBottom: 30,
         textAlign: "center",
     },
-    imageContainer: {
-        marginBottom: 20,
-        alignSelf: "center",
-    },
-    profileImage: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-    },
-    placeholder: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
-        backgroundColor: "#ddd",
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    placeholderText: {
-        fontSize: 36,
-        color: "#888",
-    },
     inputContainer: {
         flexDirection: "row",
         alignItems: "center",
@@ -315,6 +267,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 16,
+        color: "#111",
     },
     button: {
         backgroundColor: "#007bff",

@@ -1,5 +1,4 @@
 import DateTimePicker from "@/components/DateTimePicker";
-import MarkerWithEmoji from "@/components/MarkerWithEmoji";
 import {
     createActivity,
     deleteActivity,
@@ -29,14 +28,13 @@ import {
     TouchableOpacity,
     View
 } from "react-native";
-import MapView, { Region } from "react-native-maps";
+import { WebView } from "react-native-webview";
 
 
 const initialRegion = {
     latitude: 47.6510,
     longitude: 9.4797,
-    latitudeDelta: 0.1,
-    longitudeDelta: 0.1,
+    zoom: 13,
 };
 
 const MAX_OWN_ACTIVE_ACTIVITIES = 5;
@@ -80,6 +78,12 @@ type BubbleItem = {
     leaving: boolean;
 };
 
+type MapRegion = {
+    latitude: number;
+    longitude: number;
+    zoom: number;
+};
+
 const Map = () => {
     const router = useRouter();
     const { focusLat, focusLng, focusPostId, focusTs } = useLocalSearchParams<{
@@ -88,12 +92,17 @@ const Map = () => {
         focusPostId?: string;
         focusTs?: string;
     }>();
+
+    const webViewRef = React.useRef<WebView>(null);
+    const categoryScrollRef = React.useRef<ScrollView>(null);
+    const lastAppliedFocusKey = React.useRef<string | null>(null);
+    const pendingCenterRef = React.useRef<MapRegion | null>(null);
+
     const [markers, setMarkers] = useState<ActivityMarker[]>([]);
     const [modalVisible, setModalVisible] = useState(false);
     const [newMarkerCoords, setNewMarkerCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
-    const [emoji, setEmoji] = useState<string>("🌲");
     const [activityTypes, setActivityTypes] = useState<ActivityTypeOption[]>([]);
     const [selectedActivityType, setSelectedActivityType] = useState<ActivityTypeOption | null>(null);
     const [readOnly, setReadOnly] = useState(false);
@@ -101,19 +110,28 @@ const Map = () => {
     const [userId, setUserId] = useState<number | null>(null);
     const [selectedMarker, setSelectedMarker] = useState<ActivityMarker | null>(null);
     const [isSelectedMarkerJoined, setIsSelectedMarkerJoined] = useState(false);
-    const [mapInitialRegion, setMapInitialRegion] = useState(initialRegion);
+    const [mapInitialRegion, setMapInitialRegion] = useState<MapRegion>(initialRegion);
     const [isInitialRegionResolved, setIsInitialRegionResolved] = useState(false);
+    const [isMapReady, setIsMapReady] = useState(false);
     const [hasLocationPermission, setHasLocationPermission] = useState(false);
-    const [visibleRegion, setVisibleRegion] = useState<Region>(initialRegion);
-    const now = new Date();
-    const mapRef = React.useRef<MapView>(null);
-    const categoryScrollRef = React.useRef<ScrollView>(null);
-    const lastAppliedFocusKey = React.useRef<string | null>(null);
-    const lastVisibleRegionRef = React.useRef<Region>(initialRegion);
-    const bubbleItemsRef = React.useRef<BubbleItem[]>([]);
+    const [visibleRegion, setVisibleRegion] = useState<MapRegion>(initialRegion);
+    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+    const [bubbleItems, setBubbleItems] = useState<BubbleItem[]>([]);
+    const [ownActiveActivitiesCount, setOwnActiveActivitiesCount] = useState(0);
+    const [limitModalVisible, setLimitModalVisible] = useState(false);
+    
     const bubbleTranslateAnimRef = React.useRef<Record<number, Animated.Value>>({});
     const bubbleOpacityAnimRef = React.useRef<Record<number, Animated.Value>>({});
     const leavingAnimationStartedRef = React.useRef<Set<number>>(new Set());
+    const bubbleItemsRef = React.useRef<BubbleItem[]>([]);
+    const lastKnownUserLocationRef = React.useRef<MapRegion | null>(null);
+
+    const now = new Date();
+
+    useEffect(() => {
+        // WebView + Leaflet handles tile caching automatically
+        console.log("[MapTab] OSM WebView initialized");
+    }, []);
 
     const requestLocationPermission = async () => {
         const currentPermission = await Location.getForegroundPermissionsAsync();
@@ -156,12 +174,13 @@ const Map = () => {
                 });
 
                 const { latitude, longitude } = location.coords;
-                setMapInitialRegion({
+                const resolvedRegion = {
                     latitude,
                     longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                });
+                    zoom: 15,
+                };
+                setMapInitialRegion(resolvedRegion);
+                lastKnownUserLocationRef.current = resolvedRegion;
             } catch (err) {
                 console.error("Fehler beim Initialisieren der Kartenposition:", err);
                 setMapInitialRegion(initialRegion);
@@ -176,7 +195,6 @@ const Map = () => {
     useEffect(() => {
         if (!isInitialRegionResolved) return;
         setVisibleRegion(mapInitialRegion);
-        lastVisibleRegionRef.current = mapInitialRegion;
     }, [isInitialRegionResolved, mapInitialRegion]);
 
 
@@ -197,12 +215,6 @@ const Map = () => {
         };
         loadUser();
     }, []);
-
-
-    const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
-    const [bubbleItems, setBubbleItems] = useState<BubbleItem[]>([]);
-    const [ownActiveActivitiesCount, setOwnActiveActivitiesCount] = useState(0);
-    const [limitModalVisible, setLimitModalVisible] = useState(false);
 
     const refreshOwnActiveActivitiesCount = async () => {
         try {
@@ -345,41 +357,7 @@ const Map = () => {
         }, [activityTypesMap]) // 👈 Dependency
     );
 
-    useEffect(() => {
-        if (!isInitialRegionResolved) return;
-
-        const latitude = Number(focusLat);
-        const longitude = Number(focusLng);
-        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
-
-        const postId = Number(focusPostId);
-        const focusKey = `${focusTs ?? ""}:${latitude}:${longitude}:${Number.isFinite(postId) ? postId : ""}`;
-
-        if (lastAppliedFocusKey.current === focusKey) return;
-
-        mapRef.current?.animateToRegion(
-            {
-                latitude,
-                longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-            },
-            1000
-        );
-
-        // Beim Sprung aus dem Feed nur zum Marker zoomen,
-        // aber kein Detail-Modal automatisch öffnen.
-        setModalVisible(false);
-
-        lastAppliedFocusKey.current = focusKey;
-    }, [focusLat, focusLng, focusPostId, focusTs, isInitialRegionResolved]);
-
-
-
-    // Öffnet Modal beim Klick auf die Map
-    const handleMapPress = async (e: any) => {
-        const { latitude, longitude } = e.nativeEvent.coordinate;
-
+    const handleMapPress = async (coords: { latitude: number; longitude: number }) => {
         const activeOwnActivitiesCount = await refreshOwnActiveActivitiesCount();
 
         if (activeOwnActivitiesCount >= MAX_OWN_ACTIVE_ACTIVITIES) {
@@ -387,11 +365,36 @@ const Map = () => {
             return;
         }
 
-        setNewMarkerCoords({ latitude, longitude });
+        setNewMarkerCoords(coords);
         setTitle("");
         setDescription("");
         setModalVisible(true);
         setReadOnly(false);
+    };
+
+    const handleWebViewMessage = (e: any) => {
+        try {
+            const data = JSON.parse(e.nativeEvent.data);
+
+            if (data.type === "mapClick") {
+                handleMapPress({ latitude: data.latitude, longitude: data.longitude });
+            } else if (data.type === "regionChange") {
+                setVisibleRegion({ 
+                    latitude: data.latitude, 
+                    longitude: data.longitude, 
+                    zoom: data.zoom 
+                });
+            } else if (data.type === "markerClick") {
+                const marker = markers.find(m => m.post_id === data.postId);
+                if (marker) {
+                    handleMarkerPress(marker);
+                }
+            } else if (data.type === "mapReady") {
+                setIsMapReady(true);
+            }
+        } catch (error) {
+            console.error("Error parsing WebView message:", error);
+        }
     };
 
     const [startDate, setStartDate] = useState(new Date());
@@ -463,7 +466,6 @@ const Map = () => {
         setSelectedMarker(marker); // <--- speichere den aktuellen Marker
         setTitle(marker.activityTypeName);
         setDescription(marker.description ?? "");
-        setEmoji(marker.emoji ?? "📍");
         setStartDate(new Date(marker.start_time));
         setEndDate(new Date(marker.end_time));
         setModalVisible(true);
@@ -521,19 +523,68 @@ const Map = () => {
         }
     };
 
+    const centerMapToLocation = React.useCallback((target: MapRegion) => {
+        setMapInitialRegion(target);
+        lastKnownUserLocationRef.current = target;
+
+        if (!isMapReady || !webViewRef.current) {
+            pendingCenterRef.current = target;
+            return;
+        }
+
+        webViewRef.current.injectJavaScript(`
+            if (window.setUserLocationMarker) {
+                window.setUserLocationMarker(${target.latitude}, ${target.longitude});
+            }
+            if (window.animateToLocation) {
+                window.animateToLocation(${target.latitude}, ${target.longitude}, ${target.zoom});
+            }
+            true;
+        `);
+    }, [isMapReady]);
+
     const goToUserLocation = async () => {
         const hasPermission = await requestLocationPermission();
         if (!hasPermission) return;
 
-        const location = await Location.getCurrentPositionAsync({});
-        const { latitude, longitude } = location.coords;
+        // Fast path: jump immediately to last known location if available.
+        if (lastKnownUserLocationRef.current) {
+            centerMapToLocation(lastKnownUserLocationRef.current);
+        }
 
-        mapRef.current?.animateToRegion({
-            latitude,
-            longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-        }, 1000); // Dauer in ms
+        try {
+            const lastKnown = await Location.getLastKnownPositionAsync({
+                requiredAccuracy: 150,
+                maxAge: 60_000,
+            });
+
+            if (lastKnown?.coords) {
+                centerMapToLocation({
+                    latitude: lastKnown.coords.latitude,
+                    longitude: lastKnown.coords.longitude,
+                    zoom: 15,
+                });
+            }
+        } catch (err) {
+            console.warn("Konnte letzte bekannte Position nicht laden:", err);
+        }
+
+        try {
+            const precise = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            });
+
+            centerMapToLocation({
+                latitude: precise.coords.latitude,
+                longitude: precise.coords.longitude,
+                zoom: 15,
+            });
+        } catch (err) {
+            console.warn("Konnte aktuelle Position nicht laden:", err);
+            if (!lastKnownUserLocationRef.current) {
+                Alert.alert("Standort", "Standort konnte gerade nicht bestimmt werden. Bitte erneut versuchen.");
+            }
+        }
     };
 
 
@@ -544,9 +595,10 @@ const Map = () => {
         return selectedCategoryId === null || marker.activity_type_id === selectedCategoryId;
     });
 
-    const isMarkerInsideRegion = React.useCallback((marker: ActivityMarker, region: Region) => {
-        const latitudeHalfDelta = region.latitudeDelta / 2;
-        const longitudeHalfDelta = region.longitudeDelta / 2;
+    const isMarkerInsideRegion = React.useCallback((marker: ActivityMarker, region: MapRegion) => {
+        const zoomFactor = 0.05 * Math.pow(2, 13 - region.zoom);
+        const latitudeHalfDelta = zoomFactor;
+        const longitudeHalfDelta = zoomFactor;
 
         const minLatitude = region.latitude - latitudeHalfDelta;
         const maxLatitude = region.latitude + latitudeHalfDelta;
@@ -632,16 +684,21 @@ const Map = () => {
                 bubbleOpacityAnimRef.current[id] = new Animated.Value(0.7);
             }
 
-            bubbleTranslateAnimRef.current[id].stopAnimation();
-            bubbleOpacityAnimRef.current[id].stopAnimation();
+            const translate = bubbleTranslateAnimRef.current[id];
+            const opacity = bubbleOpacityAnimRef.current[id];
+
+            if (!translate || !opacity) return;
+
+            translate.stopAnimation();
+            opacity.stopAnimation();
 
             Animated.parallel([
-                Animated.timing(bubbleTranslateAnimRef.current[id], {
+                Animated.timing(translate, {
                     toValue: 0,
                     duration: 160,
                     useNativeDriver: true,
                 }),
-                Animated.timing(bubbleOpacityAnimRef.current[id], {
+                Animated.timing(opacity, {
                     toValue: 1,
                     duration: 160,
                     useNativeDriver: true,
@@ -715,40 +772,168 @@ const Map = () => {
         }
     }, [visibleActivityTypes]);
 
-    const handleRegionChangeComplete = React.useCallback((region: Region) => {
-        const previous = lastVisibleRegionRef.current;
+    useEffect(() => {
+        if (!isMapReady || !webViewRef.current) return;
 
-        const hasMeaningfulChange =
-            Math.abs(previous.latitude - region.latitude) > 0.0002 ||
-            Math.abs(previous.longitude - region.longitude) > 0.0002 ||
-            Math.abs(previous.latitudeDelta - region.latitudeDelta) > 0.0002 ||
-            Math.abs(previous.longitudeDelta - region.longitudeDelta) > 0.0002;
+        const markersGeoJson = markers
+            .filter((m) => selectedCategoryId === null || m.activity_type_id === selectedCategoryId)
+            .map((m) => ({
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [m.longitude, m.latitude] },
+                properties: {
+                    postId: m.post_id,
+                    emoji: m.emoji || "📍",
+                    title: m.title,
+                },
+            }));
 
-        if (!hasMeaningfulChange) return;
+        webViewRef.current.injectJavaScript(`
+            if (window.updateMarkers) {
+                window.updateMarkers(${JSON.stringify(markersGeoJson)});
+            }
+            true;
+        `);
+    }, [markers, selectedCategoryId, isMapReady]);
 
-        lastVisibleRegionRef.current = region;
-        setVisibleRegion(region);
-    }, []);
+    useEffect(() => {
+        if (!isMapReady || !hasLocationPermission || !webViewRef.current) return;
+
+        const target = pendingCenterRef.current ?? mapInitialRegion;
+
+        webViewRef.current.injectJavaScript(`
+            if (window.setUserLocationMarker) {
+                window.setUserLocationMarker(${target.latitude}, ${target.longitude});
+            }
+            if (window.animateToLocation) {
+                window.animateToLocation(${target.latitude}, ${target.longitude}, ${target.zoom});
+            }
+            true;
+        `);
+
+        pendingCenterRef.current = null;
+    }, [isMapReady, hasLocationPermission, mapInitialRegion]);
+
+    useEffect(() => {
+        if (!isInitialRegionResolved) return;
+
+        const latitude = Number(focusLat);
+        const longitude = Number(focusLng);
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+        const postId = Number(focusPostId);
+        const focusKey = `${focusTs ?? ""}:${latitude}:${longitude}:${Number.isFinite(postId) ? postId : ""}`;
+
+        if (lastAppliedFocusKey.current === focusKey) return;
+
+        if (webViewRef.current) {
+            webViewRef.current.injectJavaScript(`
+                window.animateToLocation(${latitude}, ${longitude}, 15);
+                true;
+            `);
+        }
+
+        lastAppliedFocusKey.current = focusKey;
+    }, [focusLat, focusLng, focusPostId, focusTs, isInitialRegionResolved]);
+
+    const leafletHtmlContent = React.useMemo(() => `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+            <style>
+                * { margin: 0; padding: 0; }
+                html, body, #map { width: 100%; height: 100%; }
+                .marker-emoji { font-size: 32px; text-align: center; width: 40px; height: 40px; }
+            </style>
+        </head>
+        <body>
+            <div id="map"></div>
+            <script>
+                const map = L.map('map', { zoomControl: false }).setView([${initialRegion.latitude}, ${initialRegion.longitude}], ${initialRegion.zoom});
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19,
+                }).addTo(map);
+
+                L.control.zoom({ position: 'bottomright' }).addTo(map);
+                
+                let markersLayer = L.featureGroup();
+                markersLayer.addTo(map);
+                let userLocationMarker = null;
+
+                window.updateMarkers = function(geoJsonFeatures) {
+                    markersLayer.clearLayers();
+                    geoJsonFeatures.forEach(feature => {
+                        const [longitude, latitude] = feature.geometry.coordinates;
+                        const { emoji } = feature.properties;
+                        const marker = L.marker([latitude, longitude], {
+                            icon: L.divIcon({
+                                html: '<div class="marker-emoji">' + emoji + '</div>',
+                                iconSize: [40, 40],
+                                className: 'custom-marker'
+                            })
+                        }).bindPopup(feature.properties.title);
+                        marker.postId = feature.properties.postId;
+                        marker.on('click', function() {
+                            window.ReactNativeWebView.postMessage(JSON.stringify({
+                                type: 'markerClick',
+                                postId: this.postId
+                            }));
+                        });
+                        markersLayer.addLayer(marker);
+                    });
+                };
+
+                window.animateToLocation = function(lat, lng, zoom) {
+                    map.flyTo([lat, lng], zoom, { duration: 1 });
+                };
+
+                window.setUserLocationMarker = function(lat, lng) {
+                    const icon = L.divIcon({
+                        html: '<div style="width:16px;height:16px;border-radius:999px;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 4px rgba(37,99,235,0.2)"></div>',
+                        iconSize: [16, 16],
+                        className: 'user-location-marker'
+                    });
+
+                    if (!userLocationMarker) {
+                        userLocationMarker = L.marker([lat, lng], { icon }).addTo(map);
+                    } else {
+                        userLocationMarker.setLatLng([lat, lng]);
+                    }
+                };
+
+                map.on('click', function(e) {
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'mapClick',
+                        latitude: e.latlng.lat,
+                        longitude: e.latlng.lng
+                    }));
+                });
+
+                map.on('moveend', function() {
+                    const center = map.getCenter();
+                    window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'regionChange',
+                        latitude: center.lat,
+                        longitude: center.lng,
+                        zoom: map.getZoom()
+                    }));
+                });
+
+                window.map = map;
+                window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady' }));
+            </script>
+        </body>
+        </html>
+    `, []);
+
+    const webViewSource = React.useMemo(() => ({ html: leafletHtmlContent }), [leafletHtmlContent]);
 
     return (
         <View style={{ flex: 1 }}>
-            <TouchableOpacity
-                onPress={goToUserLocation}
-                style={{
-                    position: "absolute",
-                    bottom: 110,      // näher an den unteren Rand
-                    right: 20,
-                    backgroundColor: "white",
-                    padding: 18,
-                    borderRadius: 50,
-                    elevation: 5,    // Android
-                    zIndex: 10,      // iOS
-                }}
-            >
-                <AntDesign name="aim" size={24} color="black"/>
-            </TouchableOpacity>
-
-
             {!isInitialRegionResolved && (
                 <View style={styles.locationLoadingContainer}>
                     <ActivityIndicator size="large" color="#007AFF" />
@@ -757,40 +942,32 @@ const Map = () => {
             )}
 
             {isInitialRegionResolved && (
-                <MapView
-                    key={hasLocationPermission ? "map-with-location" : "map-without-location"}
-                    ref={mapRef}
-                    style={StyleSheet.absoluteFill}
-                    initialRegion={mapInitialRegion}
-                    showsUserLocation={hasLocationPermission}
-                    showsMyLocationButton={false}
-                    showsCompass={false}
-                    showsPointsOfInterest
-                    showsBuildings
-                    onPress={handleMapPress}
-                    onRegionChangeComplete={handleRegionChangeComplete}
-                >
-                    {filteredMarkers.map((marker) => (
-                        <MarkerWithEmoji
-                            // stable key -> not changing due to filtering
-                            // if no stable key used, emoji falls back to default after applying filter
-                            key={marker.post_id?.toString() || `${marker.latitude}-${marker.longitude}`}
-                            marker={marker}
-                            onPress={() => handleMarkerPress(marker)}
-                        />
-                    ))}
+                <>
+                    <WebView
+                        ref={webViewRef}
+                        source={webViewSource}
+                        style={styles.mapWebView}
+                        onMessage={handleWebViewMessage}
+                        onLoadStart={() => setIsMapReady(false)}
+                        javaScriptEnabled={true}
+                        scalesPageToFit={false}
+                        startInLoadingState={true}
+                    />
 
-                </MapView>
+                    <View style={styles.osmAttributionContainer} pointerEvents="none">
+                        <Text style={styles.osmAttributionText}>© OpenStreetMap contributors</Text>
+                    </View>
+                </>
             )}
 
             {/* Kategorie-Bubbles */}
-            <View
-                style={{ marginTop: 50, paddingHorizontal: 16 }}>
+            <View style={styles.categoryOverlay} pointerEvents="box-none">
                 <ScrollView
                     ref={categoryScrollRef}
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.categoryRow}
+                    style={styles.categoryScroll}
                 >
                     <TouchableOpacity
                         style={[
@@ -848,6 +1025,22 @@ const Map = () => {
                     })}
                 </ScrollView>
             </View>
+
+            <TouchableOpacity
+                onPress={goToUserLocation}
+                style={{
+                    position: "absolute",
+                    bottom: 110,
+                    right: 20,
+                    backgroundColor: "white",
+                    padding: 18,
+                    borderRadius: 50,
+                    elevation: 5,
+                    zIndex: 30,
+                }}
+            >
+                <AntDesign name="aim" size={24} color="black" />
+            </TouchableOpacity>
 
             {/* Modal für neue Marker */}
             {/* Modal für Marker */}
@@ -958,6 +1151,7 @@ const Map = () => {
                                 <TextInput
                                     style={[styles.input, { height: 80 }]}
                                     placeholder="Beschreibung"
+                                    placeholderTextColor="#7a7a7a"
                                     value={description}
                                     onChangeText={setDescription}
                                     multiline
@@ -1045,6 +1239,34 @@ const styles = StyleSheet.create({
         fontSize: 15,
         color: "#334155",
         fontWeight: "600",
+    },
+    osmAttributionContainer: {
+        position: "absolute",
+        left: 10,
+        bottom: 16,
+        backgroundColor: "rgba(255,255,255,0.82)",
+        borderRadius: 6,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        zIndex: 20,
+    },
+    osmAttributionText: {
+        fontSize: 11,
+        color: "#334155",
+    },
+    mapWebView: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    categoryOverlay: {
+        position: "absolute",
+        top: 50,
+        left: 0,
+        right: 0,
+        paddingHorizontal: 16,
+        zIndex: 25,
+    },
+    categoryScroll: {
+        alignSelf: "flex-start",
     },
     modalBackground: {
         flex: 1,

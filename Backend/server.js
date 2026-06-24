@@ -7,6 +7,7 @@ const authRouter = require('./routes/auth');
 const activitiesRouter = require('./routes/activities');
 const chatsRouter = require('./routes/chats');
 const dashboardRouter = require('./routes/dashboard');
+const tilesRouter = require('./routes/tiles');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./docs/openapi');
 const { initWebSocket } = require('./services/wsHub');
@@ -29,6 +30,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/activities', activitiesRouter);
 app.use('/api/chats', chatsRouter);
 app.use('/api/dashboard', dashboardRouter);
+app.use('/api/tiles', tilesRouter);
 
 // Swagger UI
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

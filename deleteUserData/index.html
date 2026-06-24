@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light only">
+  <title>Account löschen</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main>
+    <div class="card">
+      <p class="eyebrow">Kontolöschung</p>
+      <h1 id="page-title">Activity App Account löschen</h1>
+      <p class="lead">Geben Sie Ihre E-Mail und Ihr Passwort ein. Durch den Klick auf "Account löschen" wird ihr Konto endgültig gelöscht.</p>
+
+      <p class="small">Mit der Löschung werden alle benutzerspezifischen Daten entfernt.</p>
+
+      <div id="statusBox" class="status-box" role="status" aria-live="polite" hidden></div>
+
+      <form id="verifyForm" class="panel" novalidate>
+        <div class="field">
+          <label for="email">E-Mail</label>
+          <input id="email" name="email" type="email" inputmode="email" autocomplete="email" placeholder="max@example.com" required>
+        </div>
+
+        <div class="field">
+          <label for="password">Passwort</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Passwort eingeben" required>
+        </div>
+
+        <button id="verifyButton" type="submit" class="primary-button">Account löschen</button>
+      </form>
+
+      <section id="resultStep" class="panel result-panel" hidden aria-live="polite">
+        <h2 id="resultTitle">Account gelöscht</h2>
+        <p id="resultMessage">Dein Konto wurde erfolgreich gelöscht.</p>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

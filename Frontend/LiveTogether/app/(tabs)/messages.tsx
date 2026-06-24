@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, Modal, TextInput, Alert } from "react-native";
-import { useRouter } from "expo-router";
-import { useFocusEffect } from "@react-navigation/native";
-import { connectToChatsUpdates, createNewChat, getUserByEmail, listChats } from "@/services/api";
 import { useUser } from "@/components/UserContext";
+import { connectToChatsUpdates, createNewChat, getUserByEmail, listChats } from "@/services/api";
+import { useFocusEffect } from "@react-navigation/native";
+import { useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 interface Chat {
     chat_id: number;
@@ -18,6 +18,15 @@ interface SelectedParticipant {
     id: number;
     email: string;
 }
+
+const getDisplayChatName = (chatName?: string, chatId?: number) => {
+    if (!chatName) return chatId ? `Chat ${chatId}` : "Chat";
+
+    const activityMatch = chatName.match(/^(Activity:\s*.*)\s*\(\d+\)$/);
+    if (activityMatch) return activityMatch[1].trim();
+
+    return chatName;
+};
 
 const Messages = () => {
     const router = useRouter();
@@ -186,7 +195,7 @@ const Messages = () => {
                     <View style={styles.chatHeader}>
                         <View style={styles.chatNameRow}>
                             {item.has_unread ? <View style={styles.unreadDot} /> : null}
-                            <Text style={styles.chatName}>{item.chat_name || `Chat ${item.chat_id}`}</Text>
+                            <Text style={styles.chatName}>{getDisplayChatName(item.chat_name, item.chat_id)}</Text>
                         </View>
                         <Text style={styles.chatTime}>{new Date(item.created_at).toLocaleDateString()}</Text>
                     </View>
@@ -232,6 +241,7 @@ const Messages = () => {
                         <TextInput
                             style={styles.modalInput}
                             placeholder="z.B. Friday Running Group"
+                            placeholderTextColor="#7a7a7a"
                             value={chatName}
                             onChangeText={setChatName}
                         />
@@ -241,6 +251,7 @@ const Messages = () => {
                             <TextInput
                                 style={[styles.modalInput, { flex: 1 }]}
                                 placeholder="E-Mail"
+                                placeholderTextColor="#7a7a7a"
                                 keyboardType="email-address"
                                 autoCapitalize="none"
                                 autoCorrect={false}
